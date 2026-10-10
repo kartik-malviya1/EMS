@@ -13,6 +13,21 @@ export interface MyAttendanceQueryParams {
   limit?: number;
 }
 
+export interface TeamAttendanceQueryParams {
+  from?: string;
+  to?: string;
+  userId?: string;
+  workingStatus?: string;
+  verificationStatus?: string;
+  overtimeStatus?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface AdminAttendanceQueryParams extends TeamAttendanceQueryParams {
+  role?: string;
+}
+
 export interface AttendanceHistoryResult {
   data: Attendance[];
   meta?: PaginationMeta;
@@ -22,6 +37,18 @@ export interface RequestOvertimePayload {
   id: string;
   requestedMinutes: number;
   reason: string;
+}
+
+export interface ReviewVerificationPayload {
+  id: string;
+  status: 'valid' | 'invalid';
+  remarks?: string;
+}
+
+export interface ReviewOvertimePayload {
+  id: string;
+  decision: 'approved' | 'rejected';
+  remarks?: string;
 }
 
 export const attendanceApi = apiSlice.injectEndpoints({
@@ -48,13 +75,49 @@ export const attendanceApi = apiSlice.injectEndpoints({
       providesTags: (result) =>
         result
           ? [
-              ...result.data.map(({ id }) => ({
+              ...result.data.map(({ id, _id }) => ({
                 type: 'Attendance' as const,
-                id,
+                id: id || _id,
               })),
               'Attendance',
             ]
           : ['Attendance'],
+    }),
+
+    getTeamAttendance: builder.query<
+      AttendanceHistoryResult,
+      TeamAttendanceQueryParams | void
+    >({
+      query: (params) => ({
+        url: '/attendance/team',
+        params: params || {},
+      }),
+      transformResponse: (response: ApiResponse<Attendance[]>) => ({
+        data: response.data,
+        meta: response.meta,
+      }),
+      providesTags: ['Attendance'],
+    }),
+
+    getAllAttendance: builder.query<
+      AttendanceHistoryResult,
+      AdminAttendanceQueryParams | void
+    >({
+      query: (params) => ({
+        url: '/attendance',
+        params: params || {},
+      }),
+      transformResponse: (response: ApiResponse<Attendance[]>) => ({
+        data: response.data,
+        meta: response.meta,
+      }),
+      providesTags: ['Attendance'],
+    }),
+
+    getAttendanceRecord: builder.query<Attendance, string>({
+      query: (id) => `/attendance/${id}`,
+      transformResponse: (response: ApiResponse<Attendance>) => response.data,
+      providesTags: (_result, _error, id) => [{ type: 'Attendance', id }],
     }),
 
     punchIn: builder.mutation<Attendance, FormData>({
@@ -74,7 +137,13 @@ export const attendanceApi = apiSlice.injectEndpoints({
         body: formData,
       }),
       transformResponse: (response: ApiResponse<Attendance>) => response.data,
-      invalidatesTags: ['Today', 'Attendance', 'Dashboard', 'Report', 'Overtime'],
+      invalidatesTags: [
+        'Today',
+        'Attendance',
+        'Dashboard',
+        'Report',
+        'Overtime',
+      ],
     }),
 
     requestOvertime: builder.mutation<Attendance, RequestOvertimePayload>({
@@ -92,13 +161,68 @@ export const attendanceApi = apiSlice.injectEndpoints({
         { type: 'Attendance', id },
       ],
     }),
+
+    reviewVerification: builder.mutation<Attendance, ReviewVerificationPayload>({
+      query: ({ id, status, remarks }) => ({
+        url: `/attendance/${id}/verification`,
+        method: 'PATCH',
+        body: { status, remarks },
+      }),
+      transformResponse: (response: ApiResponse<Attendance>) => response.data,
+      invalidatesTags: (_result, _error, { id }) => [
+        'Today',
+        'Attendance',
+        'Dashboard',
+        'Report',
+        'Overtime',
+        { type: 'Attendance', id },
+      ],
+    }),
+
+    getPendingOvertime: builder.query<
+      AttendanceHistoryResult,
+      { page?: number; limit?: number } | void
+    >({
+      query: (params) => ({
+        url: '/overtime/pending',
+        params: params || {},
+      }),
+      transformResponse: (response: ApiResponse<Attendance[]>) => ({
+        data: response.data,
+        meta: response.meta,
+      }),
+      providesTags: ['Overtime', 'Attendance'],
+    }),
+
+    reviewOvertime: builder.mutation<Attendance, ReviewOvertimePayload>({
+      query: ({ id, decision, remarks }) => ({
+        url: `/attendance/${id}/overtime/review`,
+        method: 'PATCH',
+        body: { decision, remarks },
+      }),
+      transformResponse: (response: ApiResponse<Attendance>) => response.data,
+      invalidatesTags: (_result, _error, { id }) => [
+        'Today',
+        'Attendance',
+        'Overtime',
+        'Dashboard',
+        'Report',
+        { type: 'Attendance', id },
+      ],
+    }),
   }),
 });
 
 export const {
   useGetTodayAttendanceQuery,
   useGetMyAttendanceHistoryQuery,
+  useGetTeamAttendanceQuery,
+  useGetAllAttendanceQuery,
+  useGetAttendanceRecordQuery,
   usePunchInMutation,
   usePunchOutMutation,
   useRequestOvertimeMutation,
+  useReviewVerificationMutation,
+  useGetPendingOvertimeQuery,
+  useReviewOvertimeMutation,
 } = attendanceApi;

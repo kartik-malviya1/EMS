@@ -50,9 +50,12 @@ export const DashboardStatsSkeleton: React.FC<{ count?: number }> = ({
   </div>
 );
 
+export const Skeletons = DashboardStatsSkeleton;
+
 export default {
   Skeleton,
   TableSkeleton,
   CardSkeleton,
   DashboardStatsSkeleton,
+  Skeletons,
 };

@@ -18,19 +18,31 @@ import type {
 type BadgeType = 'working' | 'verification' | 'overtime';
 
 interface StatusBadgeProps {
-  type: BadgeType;
+  type?: BadgeType;
+  kind?: BadgeType;
+  size?: 'sm' | 'md' | 'lg';
   status?: WorkingStatus | VerificationStatus | OvertimeStatus | string | null;
   className?: string;
 }
 
 export const StatusBadge: React.FC<StatusBadgeProps> = ({
   type,
+  kind,
+  size = 'md',
   status,
   className,
 }) => {
+  const activeType = type || kind || 'working';
+  const sizeClass =
+    size === 'sm'
+      ? 'text-[11px] px-2 py-0.5'
+      : size === 'lg'
+        ? 'text-sm px-3 py-1'
+        : 'text-xs px-2.5 py-0.5';
+
   if (!status) {
     return (
-      <span className={cn('inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground', className)}>
+      <span className={cn('inline-flex items-center gap-1.5 rounded-full font-medium bg-muted text-muted-foreground', sizeClass, className)}>
         <HelpCircle className="w-3.5 h-3.5" />
         <span>N/A</span>
       </span>
@@ -38,7 +50,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
   }
 
   // Working Status Mapping
-  if (type === 'working') {
+  if (activeType === 'working') {
     switch (status) {
       case 'in_progress':
         return (
@@ -103,7 +115,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
   }
 
   // Verification Status Mapping
-  if (type === 'verification') {
+  if (activeType === 'verification') {
     switch (status) {
       case 'valid':
         return (
@@ -149,7 +161,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
   }
 
   // Overtime Status Mapping
-  if (type === 'overtime') {
+  if (activeType === 'overtime') {
     switch (status) {
       case 'approved':
         return (

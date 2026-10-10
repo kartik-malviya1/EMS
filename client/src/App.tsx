@@ -11,19 +11,36 @@ import { SignupPage } from './pages/SignupPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { EmployeeDashboardPage } from './pages/employee/EmployeeDashboardPage';
 import { EmployeeHistoryPage } from './pages/employee/EmployeeHistoryPage';
+
+// Manager Pages (Phase 9)
+import { ManagerDashboardPage } from './pages/manager/ManagerDashboardPage';
+import { ManagerTeamAttendancePage } from './pages/manager/ManagerTeamAttendancePage';
+import { ManagerReviewPage } from './pages/manager/ManagerReviewPage';
+import { ManagerOvertimePage } from './pages/manager/ManagerOvertimePage';
+import { ManagerReportsPage } from './pages/manager/ManagerReportsPage';
+
+// Admin Pages (Phase 9)
+import { AdminDashboardPage } from './pages/admin/AdminDashboardPage';
+import { AdminUsersPage } from './pages/admin/AdminUsersPage';
+import { AdminAttendancePage } from './pages/admin/AdminAttendancePage';
+import { AdminReviewPage } from './pages/admin/AdminReviewPage';
+import { AdminOvertimePage } from './pages/admin/AdminOvertimePage';
+import { AdminReportsPage } from './pages/admin/AdminReportsPage';
+import { AdminSettingsPage } from './pages/admin/AdminSettingsPage';
+
+// Notifications Placeholder (Phase 10)
 import { PageHeader } from './components/common/PageHeader';
 import { EmptyState } from './components/common/EmptyState';
 
-// Placeholders for future phases (Phase 9 & 10)
-const PlaceholderPage: React.FC<{ title: string; subtitle: string }> = ({
-  title,
-  subtitle,
-}) => (
+const PlaceholderNotificationsPage: React.FC = () => (
   <div className="space-y-6">
-    <PageHeader title={title} description={subtitle} />
+    <PageHeader
+      title="Notifications"
+      description="Realtime alerts, approvals, and reminders"
+    />
     <EmptyState
-      title={`${title} In Development`}
-      description="This feature is scheduled for implementation in upcoming phases."
+      title="Notifications Center"
+      description="Realtime push alerts and notification history."
     />
   </div>
 );
@@ -71,10 +88,15 @@ export function App() {
               path="/manager"
               element={
                 <ProtectedRoute allowedRoles={['manager', 'admin']}>
-                  <PlaceholderPage
-                    title="Manager Dashboard"
-                    subtitle="Team attendance overview and queues"
-                  />
+                  <ManagerDashboardPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/manager/attendance"
+              element={
+                <ProtectedRoute allowedRoles={['manager', 'admin']}>
+                  <ManagerTeamAttendancePage />
                 </ProtectedRoute>
               }
             />
@@ -82,10 +104,7 @@ export function App() {
               path="/manager/review"
               element={
                 <ProtectedRoute allowedRoles={['manager', 'admin']}>
-                  <PlaceholderPage
-                    title="Selfie Review Queue"
-                    subtitle="Review team member punch-in and punch-out selfies"
-                  />
+                  <ManagerReviewPage />
                 </ProtectedRoute>
               }
             />
@@ -93,10 +112,7 @@ export function App() {
               path="/manager/overtime"
               element={
                 <ProtectedRoute allowedRoles={['manager', 'admin']}>
-                  <PlaceholderPage
-                    title="Overtime Review Queue"
-                    subtitle="Review pending team overtime requests"
-                  />
+                  <ManagerOvertimePage />
                 </ProtectedRoute>
               }
             />
@@ -104,10 +120,7 @@ export function App() {
               path="/manager/reports"
               element={
                 <ProtectedRoute allowedRoles={['manager', 'admin']}>
-                  <PlaceholderPage
-                    title="Team Daily Reports"
-                    subtitle="Export team attendance logs to XLSX and PDF"
-                  />
+                  <ManagerReportsPage />
                 </ProtectedRoute>
               }
             />
@@ -117,10 +130,7 @@ export function App() {
               path="/admin"
               element={
                 <ProtectedRoute allowedRoles={['admin']}>
-                  <PlaceholderPage
-                    title="Admin Dashboard"
-                    subtitle="Company-wide attendance and user telemetry"
-                  />
+                  <AdminDashboardPage />
                 </ProtectedRoute>
               }
             />
@@ -128,10 +138,7 @@ export function App() {
               path="/admin/users"
               element={
                 <ProtectedRoute allowedRoles={['admin']}>
-                  <PlaceholderPage
-                    title="User Management"
-                    subtitle="Assign roles, assign managers, and manage account statuses"
-                  />
+                  <AdminUsersPage />
                 </ProtectedRoute>
               }
             />
@@ -139,10 +146,7 @@ export function App() {
               path="/admin/attendance"
               element={
                 <ProtectedRoute allowedRoles={['admin']}>
-                  <PlaceholderPage
-                    title="All Attendance"
-                    subtitle="Search and filter company-wide shift records"
-                  />
+                  <AdminAttendancePage />
                 </ProtectedRoute>
               }
             />
@@ -150,10 +154,7 @@ export function App() {
               path="/admin/review"
               element={
                 <ProtectedRoute allowedRoles={['admin']}>
-                  <PlaceholderPage
-                    title="System Review Queue"
-                    subtitle="Review all pending selfies across the company"
-                  />
+                  <AdminReviewPage />
                 </ProtectedRoute>
               }
             />
@@ -161,10 +162,7 @@ export function App() {
               path="/admin/overtime"
               element={
                 <ProtectedRoute allowedRoles={['admin']}>
-                  <PlaceholderPage
-                    title="System Overtime Queue"
-                    subtitle="Approve or reject company overtime requests"
-                  />
+                  <AdminOvertimePage />
                 </ProtectedRoute>
               }
             />
@@ -172,10 +170,7 @@ export function App() {
               path="/admin/reports"
               element={
                 <ProtectedRoute allowedRoles={['admin']}>
-                  <PlaceholderPage
-                    title="Reports & Exports"
-                    subtitle="System-wide attendance exports and summaries"
-                  />
+                  <AdminReportsPage />
                 </ProtectedRoute>
               }
             />
@@ -183,23 +178,17 @@ export function App() {
               path="/admin/settings"
               element={
                 <ProtectedRoute allowedRoles={['admin']}>
-                  <PlaceholderPage
-                    title="Geofence Settings"
-                    subtitle="Configure office coordinates and geofence radius"
-                  />
+                  <AdminSettingsPage />
                 </ProtectedRoute>
               }
             />
 
-            {/* Notifications Route (Phase 10) */}
+            {/* Notifications Route */}
             <Route
               path="/notifications"
               element={
                 <ProtectedRoute>
-                  <PlaceholderPage
-                    title="Notifications"
-                    subtitle="Realtime alerts, approvals, and reminders"
-                  />
+                  <PlaceholderNotificationsPage />
                 </ProtectedRoute>
               }
             />
