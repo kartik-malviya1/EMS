@@ -9,6 +9,8 @@ import { RoleRedirect } from './routes/RoleRedirect';
 import { LoginPage } from './pages/LoginPage';
 import { SignupPage } from './pages/SignupPage';
 import { NotFoundPage } from './pages/NotFoundPage';
+import { EmployeeDashboardPage } from './pages/employee/EmployeeDashboardPage';
+import { EmployeeHistoryPage } from './pages/employee/EmployeeHistoryPage';
 import { PageHeader } from './components/common/PageHeader';
 import { EmptyState } from './components/common/EmptyState';
 
@@ -46,17 +48,12 @@ export function App() {
               }
             />
 
-            {/* Employee Area (Phase 8 will mount real components here) */}
+            {/* Employee Area */}
             <Route
               path="/employee"
               element={
                 <ProtectedRoute allowedRoles={['employee', 'manager', 'admin']}>
-                  <div id="employee-root">
-                    <PlaceholderPage
-                      title="Employee Dashboard"
-                      subtitle="Live shift punch card, statistics, and recent activity"
-                    />
-                  </div>
+                  <EmployeeDashboardPage />
                 </ProtectedRoute>
               }
             />
@@ -64,10 +61,7 @@ export function App() {
               path="/employee/history"
               element={
                 <ProtectedRoute allowedRoles={['employee', 'manager', 'admin']}>
-                  <PlaceholderPage
-                    title="Attendance History"
-                    subtitle="Detailed log of all recorded shifts, locations, and decisions"
-                  />
+                  <EmployeeHistoryPage />
                 </ProtectedRoute>
               }
             />

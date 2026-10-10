@@ -37,6 +37,9 @@ export const CardSkeleton: React.FC = () => (
   </div>
 );
 
+export const MetricCardSkeleton = CardSkeleton;
+
+
 export const DashboardStatsSkeleton: React.FC<{ count?: number }> = ({
   count = 4,
 }) => (

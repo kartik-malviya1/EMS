@@ -190,6 +190,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
             <span>OT Pending</span>
           </span>
         );
+      case 'not_requested':
       case 'none':
       default:
         return (

@@ -4,7 +4,12 @@ export type WorkingStatus = 'in_progress' | 'completed' | 'incomplete' | 'missed
 
 export type VerificationStatus = 'pending' | 'valid' | 'invalid';
 
-export type OvertimeStatus = 'none' | 'pending' | 'approved' | 'rejected';
+export type OvertimeStatus =
+  | 'not_requested'
+  | 'pending'
+  | 'approved'
+  | 'rejected'
+  | 'none';
 
 export interface User {
   _id?: string;
