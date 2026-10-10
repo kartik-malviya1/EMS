@@ -9,11 +9,13 @@ describe('Attendance & Selfie Endpoints', () => {
   let employee1;
   let employee2;
   let manager1;
+  let _manager2;
   let admin1;
 
   let emp1Cookie;
   let emp2Cookie;
   let mgr1Cookie;
+  let mgr2Cookie;
   let adminCookie;
 
   // 12-byte valid JPEG buffer
@@ -34,6 +36,13 @@ describe('Attendance & Selfie Endpoints', () => {
     manager1 = await User.create({
       name: 'Manager Mike',
       email: 'manager.att@example.com',
+      passwordHash,
+      role: ROLES.MANAGER,
+    });
+
+    _manager2 = await User.create({
+      name: 'Manager Dave',
+      email: 'manager2.att@example.com',
       passwordHash,
       role: ROLES.MANAGER,
     });
@@ -72,6 +81,12 @@ describe('Attendance & Selfie Endpoints', () => {
       password: 'Password123',
     });
     mgr1Cookie = loginMgr1.headers['set-cookie'];
+
+    const loginMgr2 = await request(app).post('/api/auth/login').send({
+      email: 'manager2.att@example.com',
+      password: 'Password123',
+    });
+    mgr2Cookie = loginMgr2.headers['set-cookie'];
 
     const loginAdmin = await request(app).post('/api/auth/login').send({
       email: 'admin.att@example.com',
@@ -179,6 +194,22 @@ describe('Attendance & Selfie Endpoints', () => {
       expect(res.body.error.code).toBe('UNSUPPORTED_MEDIA_TYPE');
     });
 
+    it('rejects wrong mimetype (e.g. text/plain) with 415 UNSUPPORTED_MEDIA_TYPE', async () => {
+      const res = await request(app)
+        .post('/api/attendance/punch-in')
+        .set('Cookie', emp1Cookie)
+        .field('latitude', '28.6139')
+        .field('longitude', '77.2090')
+        .field('accuracy', '10')
+        .attach('selfie', Buffer.from('plain text file'), {
+          filename: 'doc.txt',
+          contentType: 'text/plain',
+        });
+
+      expect(res.status).toBe(415);
+      expect(res.body.error.code).toBe('UNSUPPORTED_MEDIA_TYPE');
+    });
+
     it('rejects oversize selfie (> 2MB) with 413 FILE_TOO_LARGE', async () => {
       const bigBuffer = Buffer.alloc(2.5 * 1024 * 1024);
       // Valid JPEG header on oversize buffer
@@ -196,6 +227,25 @@ describe('Attendance & Selfie Endpoints', () => {
 
       expect(res.status).toBe(413);
       expect(res.body.error.code).toBe('FILE_TOO_LARGE');
+    });
+
+    it('server timestamps ignore client-supplied timestamps', async () => {
+      const pastDate = '2020-01-01T00:00:00.000Z';
+      const beforeReq = Date.now();
+      const res = await request(app)
+        .post('/api/attendance/punch-in')
+        .set('Cookie', emp1Cookie)
+        .field('latitude', '28.6139')
+        .field('longitude', '77.2090')
+        .field('accuracy', '10')
+        .field('at', pastDate)
+        .field('punchIn[at]', pastDate)
+        .attach('selfie', validJpegBuffer, 'selfie.jpg');
+
+      expect(res.status).toBe(201);
+      const recordAt = new Date(res.body.data.punchIn.at).getTime();
+      expect(recordAt).toBeGreaterThanOrEqual(beforeReq - 2000);
+      expect(recordAt).toBeLessThanOrEqual(Date.now() + 2000);
     });
   });
 
@@ -357,6 +407,48 @@ describe('Attendance & Selfie Endpoints', () => {
 
       expect(res.status).toBe(404);
       expect(res.body.error.code).toBe('NOT_FOUND');
+    });
+
+    it('returns 404 NOT_FOUND to out-of-scope manager to avoid revealing existence', async () => {
+      const res = await request(app)
+        .get(`/api/attendance/${attendanceId}/selfies/punch-in`)
+        .set('Cookie', mgr2Cookie);
+
+      expect(res.status).toBe(404);
+      expect(res.body.error.code).toBe('NOT_FOUND');
+    });
+  });
+
+  describe('GET /api/attendance/me', () => {
+    it('returns own attendance history with pagination meta and ignores other users records', async () => {
+      // emp1 punches in
+      await request(app)
+        .post('/api/attendance/punch-in')
+        .set('Cookie', emp1Cookie)
+        .field('latitude', '28.6139')
+        .field('longitude', '77.2090')
+        .field('accuracy', '10')
+        .attach('selfie', validJpegBuffer, 'selfie.jpg');
+
+      const res = await request(app)
+        .get('/api/attendance/me?page=1&limit=10')
+        .set('Cookie', emp1Cookie);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(Array.isArray(res.body.data)).toBe(true);
+      expect(res.body.data.length).toBe(1);
+      expect(res.body.meta).toBeDefined();
+      expect(res.body.meta.page).toBe(1);
+      expect(res.body.meta.total).toBe(1);
+
+      // emp2 calling /me should not see emp1's record
+      const emp2Res = await request(app)
+        .get('/api/attendance/me')
+        .set('Cookie', emp2Cookie);
+
+      expect(emp2Res.status).toBe(200);
+      expect(emp2Res.body.data.length).toBe(0);
     });
   });
 });
