@@ -19,6 +19,7 @@ export const signupSchema = z
       .min(8, 'Password must be at least 8 characters')
       .max(72, 'Password must be at most 72 characters')
       .regex(passwordRegex, 'Password must contain at least one letter and one number'),
+    confirmPassword: z.string().optional(),
   })
   .strict();
 

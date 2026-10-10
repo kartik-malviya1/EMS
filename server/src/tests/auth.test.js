@@ -47,6 +47,25 @@ describe('Authentication & RBAC', () => {
       expect(res.body.error.code).toBe('VALIDATION_ERROR');
     });
 
+    it('accepts exact browser client form payload with confirmPassword and Origin header', async () => {
+      const clientFormPayload = {
+        name: 'Browser User',
+        email: 'browser_user@example.com',
+        password: 'Password123',
+        confirmPassword: 'Password123',
+      };
+
+      const res = await request(app)
+        .post('/api/auth/signup')
+        .set('Origin', 'http://localhost:5173')
+        .send(clientFormPayload);
+
+      expect(res.status).toBe(201);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.email).toBe('browser_user@example.com');
+      expect(res.headers['set-cookie']).toBeDefined();
+    });
+
     it('rejects duplicate email with 409 CONFLICT', async () => {
       await request(app).post('/api/auth/signup').send(validSignupData);
 

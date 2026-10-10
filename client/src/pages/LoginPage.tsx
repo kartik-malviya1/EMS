@@ -23,6 +23,7 @@ export const LoginPage: React.FC = () => {
   const {
     register,
     handleSubmit,
+    setError,
     formState: { errors },
   } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -35,13 +36,41 @@ export const LoginPage: React.FC = () => {
   const onSubmit = async (values: LoginFormValues) => {
     try {
       setServerError(null);
-      const res = await loginMutation(values).unwrap();
-      dispatch(setCredentials({ user: res.user }));
+      const user = await loginMutation(values).unwrap();
+      dispatch(setCredentials({ user }));
       const fromPath = location.state?.from?.pathname || '/';
       navigate(fromPath, { replace: true });
     } catch (err: unknown) {
-      const errorData = (err as { data?: { error?: { message?: string } } })?.data?.error;
-      setServerError(errorData?.message || 'Invalid email or password. Please try again.');
+      const errorPayload = err as {
+        status?: number | string;
+        data?: {
+          error?: {
+            code?: string;
+            message?: string;
+            details?: Array<{ path?: string; message?: string }>;
+          };
+        };
+        error?: string;
+      };
+
+      const errorObj = errorPayload?.data?.error;
+      const message =
+        errorObj?.message ||
+        (typeof errorPayload?.error === 'string' ? errorPayload.error : null) ||
+        'Invalid email or password. Please try again.';
+
+      setServerError(message);
+
+      if (errorObj?.details && Array.isArray(errorObj.details)) {
+        errorObj.details.forEach((d) => {
+          if (d.path && (d.path === 'email' || d.path === 'password')) {
+            setError(d.path as keyof LoginFormValues, {
+              type: 'server',
+              message: d.message,
+            });
+          }
+        });
+      }
     }
   };
 

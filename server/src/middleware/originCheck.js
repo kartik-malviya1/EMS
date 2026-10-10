@@ -14,7 +14,11 @@ export const originCheck = (req, _res, next) => {
   }
 
   const allowedOrigin = env.CLIENT_ORIGIN || 'http://localhost:5173';
-  if (origin !== allowedOrigin) {
+  const isDevAllowed =
+    env.NODE_ENV !== 'production' &&
+    (origin === 'http://localhost:5173' || origin === 'http://127.0.0.1:5173');
+
+  if (origin !== allowedOrigin && !isDevAllowed) {
     return next(new ApiError(403, 'BAD_ORIGIN', 'Origin not permitted'));
   }
 

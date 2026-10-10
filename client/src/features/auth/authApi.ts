@@ -28,23 +28,25 @@ export const authApi = apiSlice.injectEndpoints({
       providesTags: ['Me'],
     }),
 
-    login: builder.mutation<AuthResponse, LoginRequest>({
+    login: builder.mutation<User, LoginRequest>({
       query: (credentials) => ({
         url: '/auth/login',
         method: 'POST',
         body: credentials,
       }),
-      transformResponse: (response: ApiResponse<AuthResponse>) => response.data,
+      transformResponse: (response: ApiResponse<User | { user: User }>) =>
+        'user' in response.data ? response.data.user : response.data,
       invalidatesTags: ['Me', 'Today', 'Attendance', 'Dashboard', 'Notification'],
     }),
 
-    signup: builder.mutation<AuthResponse, SignupRequest>({
+    signup: builder.mutation<User, SignupRequest>({
       query: (payload) => ({
         url: '/auth/signup',
         method: 'POST',
         body: payload,
       }),
-      transformResponse: (response: ApiResponse<AuthResponse>) => response.data,
+      transformResponse: (response: ApiResponse<User | { user: User }>) =>
+        'user' in response.data ? response.data.user : response.data,
       invalidatesTags: ['Me'],
     }),
 

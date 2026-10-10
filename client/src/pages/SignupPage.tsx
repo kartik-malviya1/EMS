@@ -23,6 +23,7 @@ export const SignupPage: React.FC = () => {
   const {
     register,
     handleSubmit,
+    setError,
     formState: { errors },
   } = useForm<SignupFormValues>({
     resolver: zodResolver(signupSchema),
@@ -37,16 +38,50 @@ export const SignupPage: React.FC = () => {
   const onSubmit = async (values: SignupFormValues) => {
     try {
       setServerError(null);
-      const res = await signupMutation({
+      const user = await signupMutation({
         name: values.name,
         email: values.email,
         password: values.password,
       }).unwrap();
-      dispatch(setCredentials({ user: res.user }));
+      dispatch(setCredentials({ user }));
       navigate('/employee', { replace: true });
     } catch (err: unknown) {
-      const errorData = (err as { data?: { error?: { message?: string } } })?.data?.error;
-      setServerError(errorData?.message || 'Failed to create account. Please try again.');
+      const errorPayload = err as {
+        status?: number | string;
+        data?: {
+          error?: {
+            code?: string;
+            message?: string;
+            details?: Array<{ path?: string; message?: string }>;
+          };
+        };
+        error?: string;
+      };
+
+      const errorObj = errorPayload?.data?.error;
+      const message =
+        errorObj?.message ||
+        (typeof errorPayload?.error === 'string' ? errorPayload.error : null) ||
+        'Failed to create account. Please try again.';
+
+      setServerError(message);
+
+      if (errorObj?.details && Array.isArray(errorObj.details)) {
+        errorObj.details.forEach((d) => {
+          if (
+            d.path &&
+            (d.path === 'name' ||
+              d.path === 'email' ||
+              d.path === 'password' ||
+              d.path === 'confirmPassword')
+          ) {
+            setError(d.path as keyof SignupFormValues, {
+              type: 'server',
+              message: d.message,
+            });
+          }
+        });
+      }
     }
   };
 

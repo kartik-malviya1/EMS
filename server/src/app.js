@@ -28,13 +28,18 @@ if (env.NODE_ENV === 'production') {
 app.use(helmet());
 
 // CORS configuration
-const clientOrigin = env.CLIENT_ORIGIN || 'http://localhost:5173';
+const allowedOrigins = [
+  env.CLIENT_ORIGIN || 'http://localhost:5173',
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+];
 app.use(
   cors({
-    origin: clientOrigin,
+    origin: allowedOrigins,
     credentials: true,
   })
 );
+
 
 // Origin check for CSRF defense
 app.use(originCheck);
