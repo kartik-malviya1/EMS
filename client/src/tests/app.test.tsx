@@ -3,8 +3,8 @@ import { render, screen } from '@testing-library/react';
 import App from '../App';
 
 describe('App component', () => {
-  it('renders application title', () => {
+  it('renders application title', async () => {
     render(<App />);
-    expect(screen.getByText(/Attendance Management System/i)).toBeInTheDocument();
+    expect(await screen.findByText(/AMS Portal/i)).toBeInTheDocument();
   });
 });

@@ -1,0 +1,193 @@
+import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { User, Lock, Mail, AlertCircle, ArrowRight } from 'lucide-react';
+import { useSignupMutation } from '../features/auth/authApi';
+import { useAppDispatch } from '../app/hooks';
+import { setCredentials } from '../features/auth/authSlice';
+import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../components/ui/card';
+import { ThemeToggle } from '../components/layout/ThemeToggle';
+
+import { signupSchema, type SignupFormValues } from '../validators/auth.validator';
+
+export const SignupPage: React.FC = () => {
+  const navigate = useNavigate();
+  const dispatch = useAppDispatch();
+  const [signupMutation, { isLoading }] = useSignupMutation();
+  const [serverError, setServerError] = useState<string | null>(null);
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<SignupFormValues>({
+    resolver: zodResolver(signupSchema),
+    defaultValues: {
+      name: '',
+      email: '',
+      password: '',
+      confirmPassword: '',
+    },
+  });
+
+  const onSubmit = async (values: SignupFormValues) => {
+    try {
+      setServerError(null);
+      const res = await signupMutation({
+        name: values.name,
+        email: values.email,
+        password: values.password,
+      }).unwrap();
+      dispatch(setCredentials({ user: res.user }));
+      navigate('/employee', { replace: true });
+    } catch (err: unknown) {
+      const errorData = (err as { data?: { error?: { message?: string } } })?.data?.error;
+      setServerError(errorData?.message || 'Failed to create account. Please try again.');
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex flex-col justify-center items-center p-4 bg-muted/30">
+      <div className="absolute top-4 right-4">
+        <ThemeToggle />
+      </div>
+
+      <div className="w-full max-w-md">
+        <div className="text-center mb-6">
+          <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground font-black text-xl shadow-md mb-2">
+            A
+          </div>
+          <h1 className="text-2xl font-bold tracking-tight">Create an account</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Join the Attendance Management Portal
+          </p>
+        </div>
+
+        <Card className="border-border/80 shadow-md">
+          <CardHeader>
+            <CardTitle>Sign Up</CardTitle>
+            <CardDescription>
+              Enter your personal details to register
+            </CardDescription>
+          </CardHeader>
+
+          <form onSubmit={handleSubmit(onSubmit)}>
+            <CardContent className="space-y-4">
+              {serverError && (
+                <div
+                  role="alert"
+                  className="flex items-center gap-2 p-3 rounded-lg text-sm bg-destructive/10 text-destructive border border-destructive/20"
+                >
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  <span>{serverError}</span>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="name">Full Name</Label>
+                <div className="relative">
+                  <User className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="name"
+                    placeholder="Alex Morgan"
+                    className="pl-9"
+                    autoComplete="name"
+                    {...register('name')}
+                  />
+                </div>
+                {errors.name && (
+                  <p className="text-xs text-destructive mt-1 font-medium">
+                    {errors.name.message}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="email">Work Email</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="name@company.com"
+                    className="pl-9"
+                    autoComplete="email"
+                    {...register('email')}
+                  />
+                </div>
+                {errors.email && (
+                  <p className="text-xs text-destructive mt-1 font-medium">
+                    {errors.email.message}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="••••••••"
+                    className="pl-9"
+                    autoComplete="new-password"
+                    {...register('password')}
+                  />
+                </div>
+                {errors.password && (
+                  <p className="text-xs text-destructive mt-1 font-medium">
+                    {errors.password.message}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword">Confirm Password</Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="confirmPassword"
+                    type="password"
+                    placeholder="••••••••"
+                    className="pl-9"
+                    autoComplete="new-password"
+                    {...register('confirmPassword')}
+                  />
+                </div>
+                {errors.confirmPassword && (
+                  <p className="text-xs text-destructive mt-1 font-medium">
+                    {errors.confirmPassword.message}
+                  </p>
+                )}
+              </div>
+            </CardContent>
+
+            <CardFooter className="flex flex-col gap-4">
+              <Button type="submit" className="w-full gap-2" disabled={isLoading}>
+                <span>{isLoading ? 'Creating Account...' : 'Sign Up'}</span>
+                {!isLoading && <ArrowRight className="h-4 w-4" />}
+              </Button>
+
+              <p className="text-center text-xs text-muted-foreground">
+                Already have an account?{' '}
+                <Link
+                  to="/login"
+                  className="text-primary font-semibold hover:underline"
+                >
+                  Sign in
+                </Link>
+              </p>
+            </CardFooter>
+          </form>
+        </Card>
+      </div>
+    </div>
+  );
+};
+
+export default SignupPage;
