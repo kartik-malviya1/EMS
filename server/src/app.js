@@ -12,6 +12,7 @@ import { globalLimiter } from './middleware/rateLimiter.js';
 import authRoutes from './routes/auth.routes.js';
 import userRoutes from './routes/user.routes.js';
 import attendanceRoutes from './routes/attendance.routes.js';
+import overtimeRoutes from './routes/overtime.routes.js';
 import settingsRoutes from './routes/settings.routes.js';
 
 const app = express();
@@ -65,6 +66,9 @@ app.use('/api/users', userRoutes);
 
 // Attendance endpoints
 app.use('/api/attendance', attendanceRoutes);
+
+// Overtime endpoints
+app.use('/api/overtime', overtimeRoutes);
 
 // Settings endpoints
 app.use('/api/settings', settingsRoutes);

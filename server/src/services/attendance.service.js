@@ -5,12 +5,19 @@ import {
   CLOSED_BY,
   STANDARD_SHIFT_MINUTES,
   ROLES,
+  VERIFICATION_STATUS,
+  OVERTIME_STATUS,
 } from '../config/constants.js';
 import { getWorkDate, calculateWorkedMinutes } from '../utils/time.js';
 import { getGeofenceSettings } from './settings.service.js';
 import { evaluateGeofence } from './geofence.service.js';
 import { uploadSelfie, getSelfie, deleteSelfie } from './storage.service.js';
-import { buildScopeFilter, canAccessEmployee } from './scope.service.js';
+import { buildScopeFilter, canAccessEmployee, canReview } from './scope.service.js';
+import {
+  notifyVerificationReviewed,
+  notifyOvertimeRequested,
+  notifyOvertimeReviewed,
+} from './notification.service.js';
 import { ApiError } from '../utils/ApiError.js';
 import { logger } from '../utils/logger.js';
 
@@ -412,3 +419,238 @@ export const getSelfieStreamData = async (user, attendanceId, kind) => {
     mimeType: selfieData.mimeType || punchEvent.selfie.mimeType || 'image/jpeg',
   };
 };
+
+/**
+ * Review Attendance Verification (Valid or Invalid)
+ */
+export const reviewVerification = async ({ user, attendanceId, status, remarks }) => {
+  const attendance = await Attendance.findById(attendanceId).populate('employeeId');
+  if (!attendance) {
+    throw new ApiError(404, 'NOT_FOUND', 'Attendance record not found');
+  }
+
+  // 1. Authorize via canReview helper
+  canReview(user, attendance, attendance.employeeId);
+
+  // 2. Reject if workingStatus is still in_progress
+  if (attendance.workingStatus === WORKING_STATUS.IN_PROGRESS) {
+    throw new ApiError(
+      409,
+      'CANNOT_REVIEW_IN_PROGRESS',
+      'Cannot review attendance that is still in progress'
+    );
+  }
+
+  // 3. Append to history & update current status
+  attendance.verification.history.push({
+    status,
+    reviewedBy: user._id,
+    reviewedAt: new Date(),
+    remarks: remarks || null,
+  });
+
+  attendance.verification.status = status;
+  attendance.verification.reviewedBy = user._id;
+  attendance.verification.reviewedAt = new Date();
+  attendance.verification.remarks = remarks || null;
+
+  await attendance.save();
+
+  // 4. Trigger notification stub
+  await notifyVerificationReviewed({ attendance, reviewer: user, status });
+
+  return Attendance.findById(attendance._id)
+    .populate('employeeId', 'name email role managerId')
+    .populate('verification.reviewedBy', 'name email')
+    .populate('overtime.reviewedBy', 'name email');
+};
+
+/**
+ * Request Overtime (Owner only)
+ */
+export const requestOvertime = async ({ user, attendanceId, requestedMinutes, reason }) => {
+  const attendance = await Attendance.findById(attendanceId);
+  if (!attendance) {
+    throw new ApiError(404, 'NOT_FOUND', 'Attendance record not found');
+  }
+
+  // 1. Owner only check (out-of-scope returns 404 to hide existence)
+  if (!attendance.employeeId.equals(user._id)) {
+    throw new ApiError(404, 'NOT_FOUND', 'Attendance record not found');
+  }
+
+  // 2. Eligibility checks
+  if (attendance.workingStatus !== WORKING_STATUS.COMPLETED) {
+    throw new ApiError(
+      409,
+      'OVERTIME_NOT_REQUESTABLE',
+      'Overtime can only be requested for completed shifts'
+    );
+  }
+
+  if ((attendance.workedMinutes || 0) <= STANDARD_SHIFT_MINUTES) {
+    throw new ApiError(
+      409,
+      'OVERTIME_NOT_REQUESTABLE',
+      'Worked minutes must exceed standard shift of 480 minutes'
+    );
+  }
+
+  if (attendance.verification?.status === VERIFICATION_STATUS.INVALID) {
+    throw new ApiError(
+      409,
+      'OVERTIME_NOT_REQUESTABLE',
+      'Cannot request overtime for attendance marked as invalid'
+    );
+  }
+
+  if (
+    attendance.overtime?.status === OVERTIME_STATUS.PENDING ||
+    attendance.overtime?.status === OVERTIME_STATUS.APPROVED
+  ) {
+    throw new ApiError(
+      409,
+      'OVERTIME_NOT_REQUESTABLE',
+      'Overtime is already pending or approved'
+    );
+  }
+
+  const maxMinutes = (attendance.workedMinutes || 0) - STANDARD_SHIFT_MINUTES;
+  if (requestedMinutes > maxMinutes) {
+    throw new ApiError(
+      400,
+      'VALIDATION_ERROR',
+      `Requested minutes (${requestedMinutes}) cannot exceed overtime worked minutes (${maxMinutes})`
+    );
+  }
+
+  // 3. Update overtime request
+  attendance.overtime.status = OVERTIME_STATUS.PENDING;
+  attendance.overtime.requestedMinutes = requestedMinutes;
+  attendance.overtime.reason = reason;
+  attendance.overtime.requestedAt = new Date();
+  attendance.overtime.reviewedBy = null;
+  attendance.overtime.reviewedAt = null;
+  attendance.overtime.remarks = null;
+
+  await attendance.save();
+
+  // 4. Trigger notification stub
+  await notifyOvertimeRequested({
+    attendance,
+    employee: user,
+    requestedMinutes,
+    reason,
+  });
+
+  return Attendance.findById(attendance._id)
+    .populate('employeeId', 'name email role managerId')
+    .populate('verification.reviewedBy', 'name email')
+    .populate('overtime.reviewedBy', 'name email');
+};
+
+/**
+ * Review Overtime (Approved or Rejected)
+ */
+export const reviewOvertime = async ({ user, attendanceId, decision, remarks }) => {
+  const attendance = await Attendance.findById(attendanceId).populate('employeeId');
+  if (!attendance) {
+    throw new ApiError(404, 'NOT_FOUND', 'Attendance record not found');
+  }
+
+  // 1. Authorize via canReview
+  canReview(user, attendance, attendance.employeeId);
+
+  // 2. Only pending overtime can be reviewed
+  if (attendance.overtime?.status !== OVERTIME_STATUS.PENDING) {
+    throw new ApiError(
+      409,
+      'INVALID_TRANSITION',
+      'Only pending overtime requests can be reviewed'
+    );
+  }
+
+  // 3. Approving when verification is invalid is blocked
+  if (decision === 'approved' && attendance.verification?.status === VERIFICATION_STATUS.INVALID) {
+    throw new ApiError(
+      409,
+      'ATTENDANCE_INVALID',
+      'Cannot approve overtime for attendance marked as invalid'
+    );
+  }
+
+  const targetStatus =
+    decision === 'approved' ? OVERTIME_STATUS.APPROVED : OVERTIME_STATUS.REJECTED;
+
+  // 4. Append to history & update state
+  attendance.overtime.history.push({
+    status: targetStatus,
+    requestedMinutes: attendance.overtime.requestedMinutes,
+    reason: attendance.overtime.reason,
+    requestedAt: attendance.overtime.requestedAt,
+    reviewedBy: user._id,
+    reviewedAt: new Date(),
+    remarks: remarks || null,
+  });
+
+  attendance.overtime.status = targetStatus;
+  attendance.overtime.reviewedBy = user._id;
+  attendance.overtime.reviewedAt = new Date();
+  attendance.overtime.remarks = remarks || null;
+
+  await attendance.save();
+
+  // 5. Trigger notification stub
+  await notifyOvertimeReviewed({ attendance, reviewer: user, decision });
+
+  return Attendance.findById(attendance._id)
+    .populate('employeeId', 'name email role managerId')
+    .populate('verification.reviewedBy', 'name email')
+    .populate('overtime.reviewedBy', 'name email');
+};
+
+/**
+ * List Pending Overtime Requests in Scope
+ */
+export const listPendingOvertime = async (user, query) => {
+  const { page = 1, limit = 20 } = query;
+  const scopeFilter = await buildScopeFilter(user);
+
+  const filter = {
+    ...scopeFilter,
+    'overtime.status': OVERTIME_STATUS.PENDING,
+  };
+
+  // Reviewer cannot review own record: exclude self from queue
+  if (filter.employeeId && filter.employeeId.$in) {
+    filter.employeeId.$in = filter.employeeId.$in.filter(
+      (id) => id.toString() !== user._id.toString()
+    );
+  } else if (!filter.employeeId) {
+    filter.employeeId = { $ne: user._id };
+  }
+
+  const skip = (page - 1) * limit;
+
+  const [records, total] = await Promise.all([
+    Attendance.find(filter)
+      .populate('employeeId', 'name email role managerId')
+      .populate('verification.reviewedBy', 'name email')
+      .populate('overtime.reviewedBy', 'name email')
+      .sort({ 'overtime.requestedAt': -1, createdAt: -1 })
+      .skip(skip)
+      .limit(limit),
+    Attendance.countDocuments(filter),
+  ]);
+
+  return {
+    records,
+    meta: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit) || 1,
+    },
+  };
+};
+

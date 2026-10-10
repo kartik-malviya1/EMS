@@ -2,7 +2,11 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import mongoose from 'mongoose';
 import { User } from '../models/user.model.js';
 import { ROLES } from '../config/constants.js';
-import { buildScopeFilter, canAccessEmployee } from '../services/scope.service.js';
+import {
+  buildScopeFilter,
+  canAccessEmployee,
+  canReview,
+} from '../services/scope.service.js';
 
 describe('Scope Service', () => {
   let adminUser;
@@ -108,6 +112,58 @@ describe('Scope Service', () => {
       expect(await canAccessEmployee(employee1UnderM1, employee2InactiveUnderM1._id)).toBe(false);
       expect(await canAccessEmployee(employee1UnderM1, manager1._id)).toBe(false);
       expect(await canAccessEmployee(employee1UnderM1, new mongoose.Types.ObjectId())).toBe(false);
+    });
+  });
+
+  describe('canReview', () => {
+    it('blocks self-review with 403 FORBIDDEN for any role', () => {
+      // Admin on own record
+      expect(() =>
+        canReview(adminUser, { employeeId: adminUser._id }, adminUser)
+      ).toThrowError(/cannot review your own attendance record/);
+
+      // Manager on own record
+      expect(() =>
+        canReview(manager1, { employeeId: manager1._id }, manager1)
+      ).toThrowError(/cannot review your own attendance record/);
+
+      // Employee on own record
+      expect(() =>
+        canReview(employee1UnderM1, { employeeId: employee1UnderM1._id }, employee1UnderM1)
+      ).toThrowError(/cannot review your own attendance record/);
+    });
+
+    it('blocks employee from reviewing another employee with 403 FORBIDDEN', () => {
+      expect(() =>
+        canReview(employee1UnderM1, { employeeId: employee3UnderM2._id }, employee3UnderM2)
+      ).toThrowError(/not authorized to review/);
+    });
+
+    it('allows manager to review direct reports', () => {
+      expect(
+        canReview(manager1, { employeeId: employee1UnderM1._id }, employee1UnderM1)
+      ).toBe(true);
+    });
+
+    it('blocks manager from reviewing out-of-scope employees or other managers with 404 NOT_FOUND', () => {
+      // Employee under manager2
+      expect(() =>
+        canReview(manager1, { employeeId: employee3UnderM2._id }, employee3UnderM2)
+      ).toThrowError(/Attendance record not found/);
+
+      // Another manager
+      expect(() =>
+        canReview(manager1, { employeeId: manager2._id }, manager2)
+      ).toThrowError(/Attendance record not found/);
+    });
+
+    it('allows admin to review any other employee, manager, or admin', () => {
+      expect(
+        canReview(adminUser, { employeeId: employee1UnderM1._id }, employee1UnderM1)
+      ).toBe(true);
+      expect(
+        canReview(adminUser, { employeeId: manager1._id }, manager1)
+      ).toBe(true);
     });
   });
 });

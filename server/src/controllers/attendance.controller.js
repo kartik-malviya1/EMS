@@ -5,6 +5,10 @@ import {
   listAttendance as listAttendanceService,
   getAttendanceById as getAttendanceByIdService,
   getSelfieStreamData,
+  reviewVerification as reviewVerificationService,
+  requestOvertime as requestOvertimeService,
+  reviewOvertime as reviewOvertimeService,
+  listPendingOvertime as listPendingOvertimeService,
 } from '../services/attendance.service.js';
 import { sendSuccess } from '../utils/response.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
@@ -73,3 +77,39 @@ export const streamSelfieImage = asyncHandler(async (req, res) => {
 
   return res.send(buffer);
 });
+
+export const handleReviewVerification = asyncHandler(async (req, res) => {
+  const record = await reviewVerificationService({
+    user: req.user,
+    attendanceId: req.params.id,
+    status: req.body.status,
+    remarks: req.body.remarks,
+  });
+  return sendSuccess(res, record, 200);
+});
+
+export const handleRequestOvertime = asyncHandler(async (req, res) => {
+  const record = await requestOvertimeService({
+    user: req.user,
+    attendanceId: req.params.id,
+    requestedMinutes: req.body.requestedMinutes,
+    reason: req.body.reason,
+  });
+  return sendSuccess(res, record, 200);
+});
+
+export const handleReviewOvertime = asyncHandler(async (req, res) => {
+  const record = await reviewOvertimeService({
+    user: req.user,
+    attendanceId: req.params.id,
+    decision: req.body.decision,
+    remarks: req.body.remarks,
+  });
+  return sendSuccess(res, record, 200);
+});
+
+export const handleListPendingOvertime = asyncHandler(async (req, res) => {
+  const result = await listPendingOvertimeService(req.user, req.query);
+  return sendSuccess(res, result.records, 200, result.meta);
+});
+

@@ -8,6 +8,9 @@ import {
   getAllAttendance,
   getAttendanceRecord,
   streamSelfieImage,
+  handleReviewVerification,
+  handleRequestOvertime,
+  handleReviewOvertime,
 } from '../controllers/attendance.controller.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
@@ -19,6 +22,9 @@ import {
   punchPayloadSchema,
   attendanceQuerySchema,
   selfieParamSchema,
+  reviewVerificationSchema,
+  requestOvertimeSchema,
+  reviewOvertimeSchema,
 } from '../validators/attendance.validator.js';
 
 const router = Router();
@@ -79,6 +85,32 @@ router.get(
   streamSelfieImage
 );
 
+// Verification review (Manager, Admin)
+router.patch(
+  '/:id/verification',
+  authenticate,
+  authorize(ROLES.MANAGER, ROLES.ADMIN),
+  validate({ params: mongoIdParamSchema, body: reviewVerificationSchema }),
+  handleReviewVerification
+);
+
+// Overtime request (Owner only)
+router.post(
+  '/:id/overtime',
+  authenticate,
+  validate({ params: mongoIdParamSchema, body: requestOvertimeSchema }),
+  handleRequestOvertime
+);
+
+// Overtime review (Manager, Admin)
+router.patch(
+  '/:id/overtime/review',
+  authenticate,
+  authorize(ROLES.MANAGER, ROLES.ADMIN),
+  validate({ params: mongoIdParamSchema, body: reviewOvertimeSchema }),
+  handleReviewOvertime
+);
+
 // Single attendance record by ID (authorized by scope)
 router.get(
   '/:id',
@@ -88,3 +120,4 @@ router.get(
 );
 
 export default router;
+
