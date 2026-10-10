@@ -10,6 +10,7 @@ import { errorHandler, notFound } from './middleware/errorHandler.js';
 import { originCheck } from './middleware/originCheck.js';
 import { globalLimiter } from './middleware/rateLimiter.js';
 import authRoutes from './routes/auth.routes.js';
+import userRoutes from './routes/user.routes.js';
 
 const app = express();
 
@@ -56,6 +57,9 @@ app.get('/api/health', (_req, res) => {
 
 // Auth endpoints
 app.use('/api/auth', authRoutes);
+
+// Users endpoints
+app.use('/api/users', userRoutes);
 
 // 404 handler
 app.use(notFound);

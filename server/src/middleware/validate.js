@@ -7,10 +7,22 @@ export const validate = (schemas) => {
         req.body = schemas.body.parse(req.body);
       }
       if (schemas.query) {
-        req.query = schemas.query.parse(req.query);
+        const parsed = schemas.query.parse(req.query);
+        Object.defineProperty(req, 'query', {
+          value: parsed,
+          writable: true,
+          configurable: true,
+          enumerable: true,
+        });
       }
       if (schemas.params) {
-        req.params = schemas.params.parse(req.params);
+        const parsed = schemas.params.parse(req.params);
+        Object.defineProperty(req, 'params', {
+          value: parsed,
+          writable: true,
+          configurable: true,
+          enumerable: true,
+        });
       }
       next();
     } catch (error) {
