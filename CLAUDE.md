@@ -15,7 +15,7 @@ Source requirements: the "Full-Stack MERN Assessment: Attendance Management Syst
 
 ## 1. Stack (pinned)
 
-Backend: Node 20+ (set `engines`), Express 5, ES modules, Mongoose 8, Zod, Morgan, bcryptjs (cost 12), jsonwebtoken, cookie-parser, helmet, cors, express-rate-limit, multer (memory storage), cloudinary, luxon, node-cron, socket.io, exceljs, pdfkit, dotenv.
+Backend: Node 20+ (set `engines`), Express 5, ES modules, Mongoose 9, Zod, Morgan, bcryptjs (cost 12), jsonwebtoken, cookie-parser, helmet, cors, express-rate-limit, multer (memory storage), cloudinary, luxon, node-cron, socket.io, exceljs, pdfkit, dotenv.
 Backend tests: Vitest + Supertest + mongodb-memory-server (standalone, no replica set).
 Frontend: React 19 + Vite + TypeScript (strict), Redux Toolkit + RTK Query, react-router-dom, Tailwind CSS + shadcn/ui (Radix) + lucide-react, react-hook-form + @hookform/resolvers + zod, sonner (toasts), socket.io-client, luxon. ESLint. Tests: Vitest + React Testing Library.
 Logging: Morgan (`dev` in development, `combined` in production) plus a tiny `utils/logger.js` wrapper over console with levels. No Winston.
