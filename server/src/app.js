@@ -3,18 +3,25 @@ import helmet from 'helmet';
 import cors from 'cors';
 import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
+
+import { env } from './config/env.js';
 import { sendSuccess } from './utils/response.js';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
+import { originCheck } from './middleware/originCheck.js';
+import { globalLimiter } from './middleware/rateLimiter.js';
+import authRoutes from './routes/auth.routes.js';
 
 const app = express();
 
-if (process.env.NODE_ENV === 'production') {
+if (env.NODE_ENV === 'production') {
   app.set('trust proxy', 1);
 }
 
+// Security headers
 app.use(helmet());
 
-const clientOrigin = process.env.CLIENT_ORIGIN || 'http://localhost:5173';
+// CORS configuration
+const clientOrigin = env.CLIENT_ORIGIN || 'http://localhost:5173';
 app.use(
   cors({
     origin: clientOrigin,
@@ -22,14 +29,23 @@ app.use(
   })
 );
 
-if (process.env.NODE_ENV !== 'test') {
-  const morganFormat = process.env.NODE_ENV === 'production' ? 'combined' : 'dev';
+// Origin check for CSRF defense
+app.use(originCheck);
+
+// Global rate limiting
+app.use(globalLimiter);
+
+// Logging
+if (env.NODE_ENV !== 'test') {
+  const morganFormat = env.NODE_ENV === 'production' ? 'combined' : 'dev';
   app.use(morgan(morganFormat));
 }
 
+// Request parsers
 app.use(express.json({ limit: '100kb' }));
 app.use(cookieParser());
 
+// Health check endpoint
 app.get('/api/health', (_req, res) => {
   return sendSuccess(res, {
     status: 'healthy',
@@ -38,8 +54,13 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
+// Auth endpoints
+app.use('/api/auth', authRoutes);
+
+// 404 handler
 app.use(notFound);
 
+// Central error handler
 app.use(errorHandler);
 
 export default app;

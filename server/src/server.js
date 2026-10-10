@@ -1,27 +1,44 @@
-import dotenv from 'dotenv';
 import app from './app.js';
+import { env } from './config/env.js';
+import { connectDB, disconnectDB } from './config/db.js';
 import { logger } from './utils/logger.js';
 
-dotenv.config();
+const PORT = env.PORT || 5000;
 
-const PORT = process.env.PORT || 5000;
+let server;
 
-const server = app.listen(PORT, () => {
-  logger.info(`Server running on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode`);
-});
+const startServer = async () => {
+  try {
+    await connectDB();
+    server = app.listen(PORT, () => {
+      logger.info(`Server running on port ${PORT} in ${env.NODE_ENV || 'development'} mode`);
+    });
+  } catch (error) {
+    logger.error('Failed to start server:', error.message);
+    process.exit(1);
+  }
+};
 
-process.on('SIGTERM', () => {
-  logger.info('SIGTERM received. Shutting down gracefully...');
-  server.close(() => {
-    logger.info('Process terminated');
-  });
-});
+const gracefulShutdown = async (signal) => {
+  logger.info(`${signal} received. Shutting down gracefully...`);
+  if (server) {
+    server.close(async () => {
+      logger.info('HTTP server closed');
+      await disconnectDB();
+      logger.info('Process terminated');
+      process.exit(0);
+    });
+  } else {
+    await disconnectDB();
+    process.exit(0);
+  }
+};
 
-process.on('SIGINT', () => {
-  logger.info('SIGINT received. Shutting down gracefully...');
-  server.close(() => {
-    logger.info('Process terminated');
-  });
-});
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+if (env.NODE_ENV !== 'test') {
+  startServer();
+}
 
 export default server;
