@@ -13,6 +13,8 @@ import authRoutes from './routes/auth.routes.js';
 import userRoutes from './routes/user.routes.js';
 import attendanceRoutes from './routes/attendance.routes.js';
 import overtimeRoutes from './routes/overtime.routes.js';
+import reportRoutes from './routes/report.routes.js';
+import dashboardRoutes from './routes/dashboard.routes.js';
 import settingsRoutes from './routes/settings.routes.js';
 
 const app = express();
@@ -69,6 +71,12 @@ app.use('/api/attendance', attendanceRoutes);
 
 // Overtime endpoints
 app.use('/api/overtime', overtimeRoutes);
+
+// Reports endpoints
+app.use('/api/reports', reportRoutes);
+
+// Dashboard endpoints
+app.use('/api/dashboard', dashboardRoutes);
 
 // Settings endpoints
 app.use('/api/settings', settingsRoutes);
