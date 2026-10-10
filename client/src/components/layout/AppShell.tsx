@@ -8,7 +8,6 @@ import {
   ShieldCheck,
   FileText,
   Settings,
-  Bell,
   Menu,
   LogOut,
   Camera,
@@ -21,6 +20,8 @@ import { useLogoutMutation } from '../../features/auth/authApi';
 import { logoutUser } from '../../features/auth/authSlice';
 import { Button } from '../ui/button';
 import { ThemeToggle } from './ThemeToggle';
+import { NotificationBell } from '../notifications/NotificationBell';
+import { useRealtime } from '../../features/realtime/useRealtime';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -163,6 +164,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({
   const [logoutMutation] = useLogoutMutation();
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  const { status: socketStatus } = useRealtime();
   const navSections = getNavSections(user?.role);
 
   const handleLogout = async () => {
@@ -243,27 +245,48 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({
           <div className="flex items-center gap-2">
             {/* Live Socket Status Dot */}
             <div
-              className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
-              title="Real-time WebSocket active"
+              className={cn(
+                'hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors',
+                socketStatus === 'connected'
+                  ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                  : socketStatus === 'connecting'
+                    ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+                    : 'bg-muted text-muted-foreground border-border/60'
+              )}
+              title={
+                socketStatus === 'connected'
+                  ? 'Real-time WebSocket active'
+                  : socketStatus === 'connecting'
+                    ? 'Connecting to real-time service...'
+                    : 'Real-time offline'
+              }
             >
               <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                {socketStatus === 'connected' && (
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                )}
+                <span
+                  className={cn(
+                    'relative inline-flex rounded-full h-2 w-2',
+                    socketStatus === 'connected'
+                      ? 'bg-emerald-500'
+                      : socketStatus === 'connecting'
+                        ? 'bg-amber-500 animate-pulse'
+                        : 'bg-muted-foreground'
+                  )}
+                />
               </span>
-              <span className="text-[11px] font-semibold">Live System</span>
+              <span className="text-[11px] font-semibold">
+                {socketStatus === 'connected'
+                  ? 'Live System'
+                  : socketStatus === 'connecting'
+                    ? 'Connecting...'
+                    : 'Offline'}
+              </span>
             </div>
 
             {/* Notifications Bell */}
-            <Link to="/notifications">
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="Notifications"
-                className="relative h-9 w-9 rounded-xl hover:bg-muted"
-              >
-                <Bell className="h-4 w-4" />
-              </Button>
-            </Link>
+            <NotificationBell />
 
             <ThemeToggle />
 

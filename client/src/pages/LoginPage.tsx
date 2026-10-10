@@ -397,11 +397,6 @@ export const LoginPage: React.FC = () => {
             </Link>
           </div>
         </div>
-
-        {/* Footer for mobile */}
-        <div className="mt-8 pt-4 border-t border-border/60 text-center text-xs text-muted-foreground lg:hidden">
-          © 2026 GreatStack. All rights reserved.
-        </div>
       </div>
     </div>
   );

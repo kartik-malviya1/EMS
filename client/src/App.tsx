@@ -1,4 +1,3 @@
-import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Provider } from 'react-redux';
 import { Toaster } from 'sonner';
@@ -28,22 +27,8 @@ import { AdminOvertimePage } from './pages/admin/AdminOvertimePage';
 import { AdminReportsPage } from './pages/admin/AdminReportsPage';
 import { AdminSettingsPage } from './pages/admin/AdminSettingsPage';
 
-// Notifications Placeholder (Phase 10)
-import { PageHeader } from './components/common/PageHeader';
-import { EmptyState } from './components/common/EmptyState';
-
-const PlaceholderNotificationsPage: React.FC = () => (
-  <div className="space-y-6">
-    <PageHeader
-      title="Notifications"
-      description="Realtime alerts, approvals, and reminders"
-    />
-    <EmptyState
-      title="Notifications Center"
-      description="Realtime push alerts and notification history."
-    />
-  </div>
-);
+// Notifications Page (Phase 10)
+import { NotificationsPage } from './pages/notifications/NotificationsPage';
 
 export function App() {
   return (
@@ -188,7 +173,7 @@ export function App() {
               path="/notifications"
               element={
                 <ProtectedRoute>
-                  <PlaceholderNotificationsPage />
+                  <NotificationsPage />
                 </ProtectedRoute>
               }
             />
