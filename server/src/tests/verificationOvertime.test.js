@@ -12,7 +12,7 @@ import {
 } from '../config/constants.js';
 
 describe('Verification & Overtime Endpoints (Phase 4)', () => {
-  let admin1;
+  let _admin1;
   let _admin2;
   let manager1;
   let manager2;
@@ -20,7 +20,7 @@ describe('Verification & Overtime Endpoints (Phase 4)', () => {
   let employee2UnderM2;
 
   let admin1Cookie;
-  let admin2Cookie;
+  let _admin2Cookie;
   let mgr1Cookie;
   let mgr2Cookie;
   let emp1Cookie;
@@ -29,7 +29,7 @@ describe('Verification & Overtime Endpoints (Phase 4)', () => {
   beforeEach(async () => {
     const passwordHash = await User.hashPassword('Password123');
 
-    admin1 = await User.create({
+    _admin1 = await User.create({
       name: 'Admin Boss 1',
       email: 'admin1.vo@example.com',
       passwordHash,
@@ -84,7 +84,7 @@ describe('Verification & Overtime Endpoints (Phase 4)', () => {
       email: 'admin2.vo@example.com',
       password: 'Password123',
     });
-    admin2Cookie = loginA2.headers['set-cookie'];
+    _admin2Cookie = loginA2.headers['set-cookie'];
 
     const loginM1 = await request(app).post('/api/auth/login').send({
       email: 'manager1.vo@example.com',
@@ -533,9 +533,9 @@ describe('Verification & Overtime Endpoints (Phase 4)', () => {
       expect(approveRes.body.data.overtime.history[1].status).toBe('approved');
     });
 
-    it('allows Admin 2 to review Admin 1 overtime (never self)', async () => {
-      const adminRecord = await Attendance.create({
-        employeeId: admin1._id,
+    it('allows Admin to review Manager overtime; blocks Manager self-review (403) and cross-manager review (404)', async () => {
+      const managerRecord = await Attendance.create({
+        employeeId: manager1._id,
         workDate: '2026-10-08',
         punchIn: {
           at: new Date('2026-10-08T09:00:00Z'),
@@ -557,23 +557,32 @@ describe('Verification & Overtime Endpoints (Phase 4)', () => {
         },
       });
 
-      // Admin 1 cannot review own record
+      // Manager 1 cannot review own record -> 403 FORBIDDEN
       const selfRes = await request(app)
-        .patch(`/api/attendance/${adminRecord._id}/overtime/review`)
-        .set('Cookie', admin1Cookie)
+        .patch(`/api/attendance/${managerRecord._id}/overtime/review`)
+        .set('Cookie', mgr1Cookie)
         .send({ decision: 'approved' });
 
       expect(selfRes.status).toBe(403);
       expect(selfRes.body.error.code).toBe('FORBIDDEN');
 
-      // Admin 2 can review Admin 1 record
-      const otherAdminRes = await request(app)
-        .patch(`/api/attendance/${adminRecord._id}/overtime/review`)
-        .set('Cookie', admin2Cookie)
+      // Manager 2 cannot review Manager 1 record -> 404 NOT_FOUND
+      const crossMgrRes = await request(app)
+        .patch(`/api/attendance/${managerRecord._id}/overtime/review`)
+        .set('Cookie', mgr2Cookie)
         .send({ decision: 'approved' });
 
-      expect(otherAdminRes.status).toBe(200);
-      expect(otherAdminRes.body.data.overtime.status).toBe('approved');
+      expect(crossMgrRes.status).toBe(404);
+      expect(crossMgrRes.body.error.code).toBe('NOT_FOUND');
+
+      // Admin can review Manager 1 record -> 200 OK
+      const adminRes = await request(app)
+        .patch(`/api/attendance/${managerRecord._id}/overtime/review`)
+        .set('Cookie', admin1Cookie)
+        .send({ decision: 'approved' });
+
+      expect(adminRes.status).toBe(200);
+      expect(adminRes.body.data.overtime.status).toBe('approved');
     });
   });
 

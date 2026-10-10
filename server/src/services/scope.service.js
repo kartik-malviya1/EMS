@@ -87,8 +87,11 @@ export const canReview = (reviewer, attendance, employee = null) => {
     throw new ApiError(403, 'FORBIDDEN', 'Employees are not authorized to review attendance records');
   }
 
-  // 3. Admin can review any employee/manager or another admin
+  // 3. Admin can review workforce records (employee or manager; no admin records exist)
   if (reviewer.role === ROLES.ADMIN) {
+    if (emp?.role === ROLES.ADMIN) {
+      throw new ApiError(404, 'NOT_FOUND', 'Attendance record not found');
+    }
     return true;
   }
 

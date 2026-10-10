@@ -29,7 +29,9 @@ export const runAutoCloseJob = async (currentDate = null) => {
     record.closedBy = CLOSED_BY.SYSTEM;
     await record.save();
 
-    await notifyAutoClose({ attendance: record });
+    if (record.employeeId && record.employeeId.isActive) {
+      await notifyAutoClose({ attendance: record });
+    }
     closedCount++;
   }
 

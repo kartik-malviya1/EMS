@@ -1,6 +1,6 @@
 import { Attendance } from '../models/attendance.model.js';
 import { Notification } from '../models/notification.model.js';
-import { WORKING_STATUS, NOTIFICATION_TYPES } from '../config/constants.js';
+import { WORKING_STATUS, NOTIFICATION_TYPES, ROLES } from '../config/constants.js';
 import { getWorkDate } from '../utils/time.js';
 import { notifyMissedPunchOut } from '../services/notification.service.js';
 import { logger } from '../utils/logger.js';
@@ -25,7 +25,11 @@ export const runMissedPunchOutJob = async (customDate = null) => {
   let alertedCount = 0;
 
   for (const record of openRecords) {
-    if (record.employeeId && record.employeeId.isActive) {
+    if (
+      record.employeeId &&
+      record.employeeId.isActive &&
+      [ROLES.EMPLOYEE, ROLES.MANAGER].includes(record.employeeId.role)
+    ) {
       const existing = await Notification.findOne({
         userId: record.employeeId._id,
         type: NOTIFICATION_TYPES.MISSED_PUNCH_OUT,

@@ -12,7 +12,7 @@ import {
   handleRequestOvertime,
   handleReviewOvertime,
 } from '../controllers/attendance.controller.js';
-import { authenticate, authorize } from '../middleware/auth.js';
+import { authenticate, authorize, requireWorkforce } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { selfieUploadMiddleware } from '../middleware/upload.js';
 import { punchLimiter } from '../middleware/rateLimiter.js';
@@ -29,10 +29,11 @@ import {
 
 const router = Router();
 
-// Punch endpoints
+// Punch endpoints (require workforce role; checked before upload so no image is stored)
 router.post(
   '/punch-in',
   authenticate,
+  requireWorkforce,
   punchLimiter,
   selfieUploadMiddleware,
   validate({ body: punchPayloadSchema }),
@@ -42,6 +43,7 @@ router.post(
 router.post(
   '/punch-out',
   authenticate,
+  requireWorkforce,
   punchLimiter,
   selfieUploadMiddleware,
   validate({ body: punchPayloadSchema }),
@@ -49,12 +51,13 @@ router.post(
 );
 
 // Today's attendance
-router.get('/today', authenticate, getTodayAttendance);
+router.get('/today', authenticate, requireWorkforce, getTodayAttendance);
 
 // Personal attendance history
 router.get(
   '/me',
   authenticate,
+  requireWorkforce,
   validate({ query: attendanceQuerySchema }),
   getMyAttendance
 );
@@ -94,10 +97,11 @@ router.patch(
   handleReviewVerification
 );
 
-// Overtime request (Owner only)
+// Overtime request (Owner only, workforce role)
 router.post(
   '/:id/overtime',
   authenticate,
+  requireWorkforce,
   validate({ params: mongoIdParamSchema, body: requestOvertimeSchema }),
   handleRequestOvertime
 );

@@ -8,6 +8,26 @@ import {
 import { toast } from 'sonner';
 import { logoutUser } from '../auth/authSlice';
 
+// Module-level state to track intentional user logout
+let isIntentionalLogout = false;
+let lastExpiredToastTime = 0;
+
+export const setIntentionalLogout = (value: boolean) => {
+  isIntentionalLogout = value;
+};
+
+export const notifySessionExpiredOnce = () => {
+  const now = Date.now();
+  // Throttle to at most one notification every 10 seconds
+  if (now - lastExpiredToastTime > 10000) {
+    lastExpiredToastTime = now;
+    toast.error('Your session has expired. Please sign in again.', {
+      id: 'session-expired-toast',
+      duration: 5000,
+    });
+  }
+};
+
 const getBaseUrl = () => {
   if (
     typeof window !== 'undefined' &&
@@ -33,14 +53,22 @@ const baseQueryWithReauth: BaseQueryFn<
 
   if (result.error && result.error.status === 401) {
     const url = typeof args === 'string' ? args : args.url;
-    // Don't toast or clear for login failure or initial session probe
-    if (
-      !url.includes('/auth/login') &&
-      !url.includes('/auth/signup') &&
-      !url.includes('/auth/me')
-    ) {
+    const isLoginOrAuthPath =
+      url.includes('/auth/login') ||
+      url.includes('/auth/signup') ||
+      url.includes('/auth/me');
+
+    const pathname = typeof window !== 'undefined' ? window.location?.pathname : '';
+    const isOnAuthPage = pathname === '/login' || pathname === '/signup';
+
+    const state = api.getState() as { auth?: { isAuthenticated?: boolean } };
+    const wasAuthenticated = Boolean(state.auth?.isAuthenticated);
+
+    // If intentional logout or on login/signup page or probing auth, suppress any session-expired alerts
+    if (!isLoginOrAuthPath && !isIntentionalLogout && !isOnAuthPage && wasAuthenticated) {
       api.dispatch(logoutUser());
-      toast.error('Session expired or unauthenticated. Please log in.');
+      api.dispatch(apiSlice.util.resetApiState());
+      notifySessionExpiredOnce();
     }
   }
 

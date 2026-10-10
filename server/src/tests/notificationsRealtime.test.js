@@ -411,15 +411,15 @@ describe('Phase 6 — Notifications, Scheduled Jobs, Realtime & Rate Limiting', 
     it('runMissedPunchInJob creates idempotent alert and does not duplicate on repeat run', async () => {
       const workDate = '2026-10-12'; // Monday (guaranteed working day)
 
-      // Both employees have no attendance for this date
+      // All active workforce members (manager + 2 employees) have no attendance for this date
       const run1 = await runMissedPunchInJob(workDate, true);
-      expect(run1.alertedCount).toBe(2);
+      expect(run1.alertedCount).toBe(3);
 
       const countAfterFirst = await Notification.countDocuments({
         type: NOTIFICATION_TYPES.MISSED_PUNCH_IN,
         'data.workDate': workDate,
       });
-      expect(countAfterFirst).toBe(2);
+      expect(countAfterFirst).toBe(3);
 
       // Run a second time: idempotency prevents duplicate notifications
       const run2 = await runMissedPunchInJob(workDate, true);
@@ -429,7 +429,7 @@ describe('Phase 6 — Notifications, Scheduled Jobs, Realtime & Rate Limiting', 
         type: NOTIFICATION_TYPES.MISSED_PUNCH_IN,
         'data.workDate': workDate,
       });
-      expect(countAfterSecond).toBe(2);
+      expect(countAfterSecond).toBe(3);
     });
 
     it('runMissedPunchOutJob alerts open records idempotently', async () => {

@@ -47,6 +47,21 @@ export function formatAttendanceError(err: unknown): string {
         );
       case 'ATTENDANCE_INVALID':
         return 'This attendance record was marked invalid.';
+      case 'ADMIN_NOT_ELIGIBLE':
+        return (
+          serverMsg ||
+          'Administrators are administrative-only and not eligible for workforce attendance actions.'
+        );
+      case 'STORAGE_UNAVAILABLE':
+        return (
+          serverMsg ||
+          'Selfie storage service is temporarily unavailable. Please try again.'
+        );
+      case 'OPEN_SHIFT':
+        return (
+          serverMsg ||
+          'Cannot modify user status while they have an active in-progress shift.'
+        );
       case 'RATE_LIMITED':
         return 'Too many punch requests in a short period. Please wait a few minutes and try again.';
       default:

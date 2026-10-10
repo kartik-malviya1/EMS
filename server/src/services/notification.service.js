@@ -60,13 +60,20 @@ export const notifyOvertimeRequested = async ({
   const recipients = new Set();
 
   if (requesterRole === ROLES.EMPLOYEE) {
-    // Notify manager if assigned
     const managerId = employee.managerId?._id || employee.managerId;
     if (managerId && managerId.toString() !== requesterId) {
       recipients.add(managerId.toString());
+    } else {
+      // Employee with no assigned manager: notification fallback = all active admins
+      const admins = await User.find({ role: ROLES.ADMIN, isActive: true }).select('_id');
+      for (const adm of admins) {
+        if (adm._id.toString() !== requesterId) {
+          recipients.add(adm._id.toString());
+        }
+      }
     }
-  } else {
-    // Requester is a manager or admin -> notify all admins (except requester)
+  } else if (requesterRole === ROLES.MANAGER) {
+    // Requester is a manager -> notify all admins
     const admins = await User.find({ role: ROLES.ADMIN, isActive: true }).select('_id');
     for (const adm of admins) {
       if (adm._id.toString() !== requesterId) {

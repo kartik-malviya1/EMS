@@ -107,7 +107,15 @@ export const getDashboardSummary = async (user) => {
       if (u.isActive) activeUsers++;
     }
 
-    const todayRecords = await Attendance.find({ workDate: today });
+    const workforceUsers = await User.find({
+      role: { $in: [ROLES.EMPLOYEE, ROLES.MANAGER] },
+    }).select('_id');
+    const workforceIds = workforceUsers.map((u) => u._id);
+
+    const todayRecords = await Attendance.find({
+      workDate: today,
+      employeeId: { $in: workforceIds },
+    });
 
     let completed = 0;
     let incomplete = 0;
@@ -121,11 +129,13 @@ export const getDashboardSummary = async (user) => {
     }
 
     const pendingVerification = await Attendance.countDocuments({
+      employeeId: { $in: workforceIds },
       'verification.status': VERIFICATION_STATUS.PENDING,
       workingStatus: { $ne: WORKING_STATUS.IN_PROGRESS },
     });
 
     const pendingOvertime = await Attendance.countDocuments({
+      employeeId: { $in: workforceIds },
       'overtime.status': OVERTIME_STATUS.PENDING,
     });
 

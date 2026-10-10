@@ -7,7 +7,6 @@ import {
   Camera,
   FileText,
 } from 'lucide-react';
-import { DateTime } from 'luxon';
 import { PageHeader } from '../../components/common/PageHeader';
 import { PunchCard } from '../../components/employee/PunchCard';
 import { EmployeeSummaryCards } from '../../components/employee/EmployeeSummaryCards';
@@ -18,6 +17,7 @@ import { Button } from '../../components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/card';
 import { TableSkeleton } from '../../components/common/Skeletons';
 import { EmptyState } from '../../components/common/EmptyState';
+import { AttendanceTimeline } from '../../components/common/AttendanceTimeline';
 import {
   useGetTodayAttendanceQuery,
   useGetMyAttendanceHistoryQuery,
@@ -50,18 +50,6 @@ export const EmployeeDashboardPage: React.FC = () => {
 
   const handleOpenOvertime = (attendance: Attendance) => {
     setSelectedOvertimeRecord(attendance);
-  };
-
-  const formatTime = (isoString?: string | null) => {
-    if (!isoString) return '--:--';
-    return DateTime.fromISO(isoString).toFormat('hh:mm a');
-  };
-
-  const formatMinutes = (minutes?: number | null) => {
-    if (minutes === undefined || minutes === null) return '--';
-    const h = Math.floor(minutes / 60);
-    const m = minutes % 60;
-    return `${h}h ${m}m`;
   };
 
   return (
@@ -127,11 +115,9 @@ export const EmployeeDashboardPage: React.FC = () => {
                 <table className="w-full text-left text-xs">
                   <thead className="bg-muted/40 text-muted-foreground font-semibold border-b border-border/40">
                     <tr>
-                      <th className="px-4 py-3">Date</th>
-                      <th className="px-4 py-3">Punch In</th>
-                      <th className="px-4 py-3">Punch Out</th>
-                      <th className="px-4 py-3">Duration</th>
-                      <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3">Work Date</th>
+                      <th className="px-4 py-3">Clock-in & Out</th>
+                      <th className="px-4 py-3">Shift Status</th>
                       <th className="px-4 py-3">Verification</th>
                       <th className="px-4 py-3">Overtime</th>
                       <th className="px-4 py-3 text-right">Actions</th>
@@ -153,26 +139,21 @@ export const EmployeeDashboardPage: React.FC = () => {
                           className="hover:bg-muted/20 transition-colors"
                         >
                           {/* Date */}
-                          <td className="px-4 py-3 font-medium whitespace-nowrap">
+                          <td className="px-4 py-3 font-semibold whitespace-nowrap">
                             <div className="flex items-center gap-1.5">
                               <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
                               <span>{record.workDate}</span>
                             </div>
                           </td>
 
-                          {/* Punch In */}
-                          <td className="px-4 py-3 whitespace-nowrap font-mono">
-                            {formatTime(record.punchIn?.at)}
-                          </td>
-
-                          {/* Punch Out */}
-                          <td className="px-4 py-3 whitespace-nowrap font-mono">
-                            {formatTime(record.punchOut?.at)}
-                          </td>
-
-                          {/* Worked Duration */}
-                          <td className="px-4 py-3 whitespace-nowrap font-mono font-medium">
-                            {formatMinutes(record.workedMinutes)}
+                          {/* Clock-in & Out */}
+                          <td className="px-4 py-3">
+                            <AttendanceTimeline
+                              punchInAt={record.punchIn?.at}
+                              punchOutAt={record.punchOut?.at}
+                              workedMinutes={record.workedMinutes}
+                              workingStatus={record.workingStatus}
+                            />
                           </td>
 
                           {/* Working Status */}

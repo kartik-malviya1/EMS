@@ -8,6 +8,7 @@ import {
   Calendar,
   Timer,
   Info,
+  RefreshCw,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { DateTime } from 'luxon';
@@ -428,6 +429,18 @@ export const PunchCard: React.FC<PunchCardProps> = ({
                         : 'Waiting for location...'}
                 </span>
               </div>
+              {geoError && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={getLocation}
+                  className="h-7 text-[11px] px-2.5 ml-2"
+                >
+                  <RefreshCw className="w-3 h-3 mr-1" />
+                  Retry GPS
+                </Button>
+              )}
               {coords && (
                 <span className="font-mono text-[11px] font-semibold bg-background px-2 py-0.5 rounded border border-border">
                   ±{Math.round(coords.accuracy)}m
@@ -448,12 +461,19 @@ export const PunchCard: React.FC<PunchCardProps> = ({
                   type="button"
                   size="lg"
                   variant="default"
-                  disabled={isSubmitting || geoLoading}
+                  disabled={
+                    isSubmitting ||
+                    isPunchingIn ||
+                    isPunchingOut ||
+                    geoLoading ||
+                    Boolean(geoError) ||
+                    !coords
+                  }
                   onClick={handleSubmitPunch}
                   className="w-full h-11 text-sm font-semibold shadow-md"
                 >
                   <CheckCircle2 className="w-4 h-4 mr-2" />
-                  {isSubmitting
+                  {isSubmitting || isPunchingIn || isPunchingOut
                     ? 'Verifying and Submitting...'
                     : activePunchModal === 'punch-in'
                       ? 'Submit Punch In'

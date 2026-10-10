@@ -1,19 +1,17 @@
 import React, { useState } from 'react';
 import { PageHeader } from '../../components/common/PageHeader';
-import { Card, CardContent } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Skeletons } from '../../components/common/Skeletons';
 import { EmptyState } from '../../components/common/EmptyState';
 import { ErrorState } from '../../components/common/ErrorState';
 import { UserEditDialog } from '../../components/users/UserEditDialog';
+import { EmployeeCell } from '../../components/common/EmployeeCell';
 import { useGetUsersQuery } from '../../features/users/usersApi';
 import type { User, Role } from '../../types/models';
 import {
   Search,
   UserCog,
-  CheckCircle2,
-  XCircle,
   ChevronLeft,
   ChevronRight,
   RotateCcw,
@@ -55,19 +53,19 @@ export const AdminUsersPage: React.FC = () => {
     switch (userRole) {
       case 'admin':
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/20">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/20">
             <Shield className="w-3 h-3" /> Admin
           </span>
         );
       case 'manager':
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
             <Briefcase className="w-3 h-3" /> Manager
           </span>
         );
       default:
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-500/10 text-slate-600 dark:text-slate-400 border border-slate-500/20">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-500/10 text-slate-600 dark:text-slate-400 border border-slate-500/20">
             <UserIcon className="w-3 h-3" /> Employee
           </span>
         );
@@ -76,83 +74,69 @@ export const AdminUsersPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="User Management"
-        description="Search, view, and modify roles, active status, and manager assignments across the company"
-      />
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <PageHeader
+            title="User Management"
+            description="Inspect, assign managers, and update roles and active status across the organization"
+          />
+        </div>
+      </div>
 
-      {/* Filter Bar */}
-      <Card className="border-border/70 shadow-sm">
-        <CardContent className="p-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-            <div className="relative">
-              <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
-                Search Name / Email
-              </label>
-              <div className="relative">
-                <Search className="w-3.5 h-3.5 absolute left-2.5 top-3 text-muted-foreground" />
-                <Input
-                  value={search}
-                  onChange={(e) => {
-                    setSearch(e.target.value);
-                    setPage(1);
-                  }}
-                  placeholder="Filter users..."
-                  className="pl-8 h-9 text-xs"
-                />
-              </div>
-            </div>
+      {/* Filter and Search Bar */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-1">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+          <Input
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
+            placeholder="Search employee by name or email..."
+            className="pl-9 h-9 text-xs rounded-xl"
+          />
+        </div>
 
-            <div>
-              <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
-                Role
-              </label>
-              <select
-                value={role}
-                onChange={(e) => {
-                  setRole(e.target.value as Role | '');
-                  setPage(1);
-                }}
-                className="w-full h-9 rounded-md border border-input bg-background px-2.5 text-xs focus:ring-2 focus:ring-primary/20 focus:border-primary"
-              >
-                <option value="">All Roles</option>
-                <option value="employee">Employees</option>
-                <option value="manager">Managers</option>
-                <option value="admin">Administrators</option>
-              </select>
-            </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={role}
+            onChange={(e) => {
+              setRole(e.target.value as Role | '');
+              setPage(1);
+            }}
+            className="h-9 rounded-xl border border-input bg-card px-3 text-xs font-medium focus:ring-2 focus:ring-primary/20"
+          >
+            <option value="">All Roles</option>
+            <option value="employee">Employees</option>
+            <option value="manager">Managers</option>
+            <option value="admin">Administrators</option>
+          </select>
 
-            <div>
-              <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
-                Account Status
-              </label>
-              <select
-                value={isActive}
-                onChange={(e) => {
-                  setIsActive(e.target.value);
-                  setPage(1);
-                }}
-                className="w-full h-9 rounded-md border border-input bg-background px-2.5 text-xs focus:ring-2 focus:ring-primary/20 focus:border-primary"
-              >
-                <option value="">All Statuses</option>
-                <option value="true">Active Only</option>
-                <option value="false">Inactive Only</option>
-              </select>
-            </div>
+          <select
+            value={isActive}
+            onChange={(e) => {
+              setIsActive(e.target.value);
+              setPage(1);
+            }}
+            className="h-9 rounded-xl border border-input bg-card px-3 text-xs font-medium focus:ring-2 focus:ring-primary/20"
+          >
+            <option value="">All Account Statuses</option>
+            <option value="true">Active Only</option>
+            <option value="false">Inactive Only</option>
+          </select>
 
-            <div className="flex items-end">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleResetFilters}
-                className="h-9 w-full text-xs gap-1"
-              >
-                <RotateCcw className="w-3.5 h-3.5" /> Reset Filters
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleResetFilters}
+            className="h-9 text-xs gap-1 rounded-xl"
+            title="Reset filters"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+          </Button>
+        </div>
+      </div>
 
       {/* Users Table */}
       {isLoading ? (
@@ -170,19 +154,19 @@ export const AdminUsersPage: React.FC = () => {
         />
       ) : (
         <div className="space-y-4">
-          <div className="border border-border/80 rounded-2xl bg-card overflow-hidden shadow-sm">
+          <div className="border border-border/70 rounded-2xl bg-card overflow-hidden shadow-xs">
             <div className="overflow-x-auto">
               <table className="w-full text-xs text-left">
-                <thead className="bg-muted/50 border-b border-border/70 text-muted-foreground uppercase tracking-wider font-semibold">
+                <thead className="bg-muted/40 border-b border-border/60 text-muted-foreground uppercase tracking-wider font-bold text-[11px]">
                   <tr>
-                    <th className="py-3 px-4">User</th>
-                    <th className="py-3 px-4">Role</th>
-                    <th className="py-3 px-4">Reporting Manager</th>
-                    <th className="py-3 px-4">Account Status</th>
-                    <th className="py-3 px-4 text-right">Actions</th>
+                    <th className="py-3.5 px-4">User</th>
+                    <th className="py-3.5 px-4">Role</th>
+                    <th className="py-3.5 px-4">Reporting Manager</th>
+                    <th className="py-3.5 px-4">Status</th>
+                    <th className="py-3.5 px-4 text-right">Action</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border/60">
+                <tbody className="divide-y divide-border/50">
                   {users.map((u) => {
                     const manager =
                       typeof u.managerId === 'object' && u.managerId !== null
@@ -195,25 +179,15 @@ export const AdminUsersPage: React.FC = () => {
                         key={uId}
                         className="hover:bg-muted/30 transition-colors"
                       >
-                        <td className="py-3 px-4 font-semibold text-foreground">
-                          <div className="flex items-center gap-2.5">
-                            <div className="w-7 h-7 rounded-full bg-primary/10 text-primary font-bold flex items-center justify-center text-xs">
-                              {u.name?.charAt(0).toUpperCase() || 'U'}
-                            </div>
-                            <div>
-                              <div>{u.name}</div>
-                              <div className="text-[11px] font-normal text-muted-foreground">
-                                {u.email}
-                              </div>
-                            </div>
-                          </div>
+                        <td className="py-3 px-4">
+                          <EmployeeCell employee={u} />
                         </td>
                         <td className="py-3 px-4">{renderRoleBadge(u.role)}</td>
                         <td className="py-3 px-4 text-muted-foreground">
                           {u.role === 'employee' ? (
                             manager ? (
                               <span className="font-medium text-foreground">
-                                {manager.name} ({manager.email})
+                                {manager.name}
                               </span>
                             ) : (
                               <span className="italic text-muted-foreground/70">
@@ -226,12 +200,14 @@ export const AdminUsersPage: React.FC = () => {
                         </td>
                         <td className="py-3 px-4">
                           {u.isActive ? (
-                            <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-semibold text-xs">
-                              <CheckCircle2 className="w-3.5 h-3.5" /> Active
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                              Active
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 text-rose-600 dark:text-rose-400 font-semibold text-xs">
-                              <XCircle className="w-3.5 h-3.5" /> Deactivated
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+                              <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                              Deactivated
                             </span>
                           )}
                         </td>
@@ -239,7 +215,7 @@ export const AdminUsersPage: React.FC = () => {
                           <Button
                             variant="outline"
                             size="sm"
-                            className="h-8 gap-1 text-xs"
+                            className="h-8 rounded-xl text-xs font-semibold hover:border-primary hover:text-primary transition-all gap-1.5"
                             onClick={() => {
                               setSelectedUser(u);
                               setEditDialogOpen(true);
@@ -258,13 +234,13 @@ export const AdminUsersPage: React.FC = () => {
             {meta && meta.totalPages > 1 && (
               <div className="p-3 border-t border-border/70 flex items-center justify-between text-xs text-muted-foreground bg-muted/20">
                 <span>
-                  Page {meta.page} of {meta.totalPages} ({meta.total} users)
+                  Showing Page {meta.page} of {meta.totalPages} ({meta.total} users total)
                 </span>
                 <div className="flex items-center gap-2">
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-7 text-xs"
+                    className="h-7 text-xs rounded-lg"
                     disabled={meta.page <= 1}
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
                   >
@@ -273,7 +249,7 @@ export const AdminUsersPage: React.FC = () => {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-7 text-xs"
+                    className="h-7 text-xs rounded-lg"
                     disabled={meta.page >= meta.totalPages}
                     onClick={() => setPage((p) => p + 1)}
                   >

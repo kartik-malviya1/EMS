@@ -47,23 +47,23 @@ export function DataTable<T extends { id?: string; _id?: string }>({
   }
 
   return (
-    <div className={cn('rounded-xl border bg-card shadow-xs overflow-hidden', className)}>
+    <div className={cn('rounded-2xl border border-border/70 bg-card shadow-xs overflow-hidden', className)}>
       <div className="overflow-x-auto">
         <table className="w-full text-sm text-left border-collapse">
-          <thead className="bg-muted/50 text-muted-foreground uppercase text-xs tracking-wider border-b border-border">
+          <thead className="bg-muted/40 text-muted-foreground text-[11px] font-bold uppercase tracking-wider border-b border-border/60">
             <tr>
               {columns.map((col, index) => (
                 <th
                   key={index}
                   scope="col"
-                  className={cn('px-4 py-3 font-semibold', col.className)}
+                  className={cn('px-4 py-3.5 font-bold', col.className)}
                 >
                   {col.header}
                 </th>
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-border/60">
+          <tbody className="divide-y divide-border/50">
             {data.map((row, rowIndex) => {
               const rowKey = row.id || row._id || String(rowIndex);
               return (

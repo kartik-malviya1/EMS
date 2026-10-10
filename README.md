@@ -27,9 +27,14 @@ A full-stack role-based Attendance Management System featuring location tracking
 6. `npm run lint` (runs ESLint)
 
 ## Assumptions & Rules (per CLAUDE.md)
+- **Administrative Role**: Admin is strictly an administrative-only role: no punch in/out, no personal attendance records, no overtime requests, and no shift alerts.
+- **Workforce Roles**: `employee` and `manager`. Manager self-attendance is an implementation assumption (the assignment only describes employee punch-in/out).
+- **Reviewer Scope Matrix**: Employee records are reviewed by their assigned manager or any admin. Manager records are reviewed by admins only. No one reviews their own records (self-review blocked with 403).
+- **Scope at Request Time**: Authority over pending items is evaluated dynamically at request time (if an employee's manager is reassigned, pending review items move with the employee).
+- **Unassigned Employees**: Employees with no assigned manager have their overtime requests and review queue routed to active admins.
+- **Midnight Boundary**: Shifts crossing business midnight are not supported; auto-close at `AUTO_CLOSE_TIME` marks unclosed shifts as missed.
 - **BUSINESS_TIMEZONE**: `Asia/Kolkata` (default). All work dates and attendance calculated server-side using server clock.
 - **Shift Duration**: Standard shift is 480 minutes (8 hours). `>= 480 min` is `completed`, `< 480 min` is `incomplete`.
 - **One Record per Day**: Strictly one attendance record per employee per business work date.
 - **Overtime**: Allowed only for completed records exceeding 480 minutes. Overtime minutes = time beyond 8 hours.
-- **Live Selfies**: Live camera capture only (no file uploads), authenticated and streamed server-side.
-- **RBAC**: Three roles (`employee`, `manager`, `admin`). Strict separation of reviewer scopes and administrative controls.
+- **Live Selfies**: Live camera capture only (no file uploads), authenticated and streamed server-side through signed proxy.

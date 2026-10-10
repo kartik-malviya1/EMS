@@ -24,7 +24,7 @@ export const runMissedPunchInJob = async (customDate = null, forceWorkingDay = f
   }
 
   const employees = await User.find({
-    role: ROLES.EMPLOYEE,
+    role: { $in: [ROLES.EMPLOYEE, ROLES.MANAGER] },
     isActive: true,
   });
 

@@ -7,10 +7,13 @@ import { StatusBadge } from '../../components/common/StatusBadge';
 import { Skeletons } from '../../components/common/Skeletons';
 import { EmptyState } from '../../components/common/EmptyState';
 import { ErrorState } from '../../components/common/ErrorState';
+import { EmployeeCell } from '../../components/common/EmployeeCell';
+import { AttendanceTimeline } from '../../components/common/AttendanceTimeline';
 import {
   useGetDailyReportQuery,
   downloadReportExport,
 } from '../../features/reports/reportsApi';
+import type { User } from '../../types/models';
 import {
   FileSpreadsheet,
   FileText,
@@ -77,34 +80,36 @@ export const AdminReportsPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <PageHeader
-          title="Company Attendance Reports"
-          description="Detailed attendance logs and aggregated shift analytics with Excel and PDF export"
-        />
+        <div>
+          <PageHeader
+            title="Company Attendance Reports"
+            description="Detailed attendance logs and aggregated shift analytics with Excel and PDF export"
+          />
+        </div>
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
             size="sm"
             onClick={() => handleExport('xlsx')}
             disabled={isExporting}
-            className="gap-1.5"
+            className="gap-1.5 h-9 rounded-xl text-xs font-semibold hover:border-emerald-500/40 hover:text-emerald-600 transition-all"
           >
-            <FileSpreadsheet className="w-4 h-4 text-emerald-600" /> Export XLSX
+            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" /> Export XLSX
           </Button>
           <Button
             variant="outline"
             size="sm"
             onClick={() => handleExport('pdf')}
             disabled={isExporting}
-            className="gap-1.5"
+            className="gap-1.5 h-9 rounded-xl text-xs font-semibold hover:border-rose-500/40 hover:text-rose-600 transition-all"
           >
-            <FileText className="w-4 h-4 text-rose-600" /> Export PDF
+            <FileText className="w-3.5 h-3.5 text-rose-600" /> Export PDF
           </Button>
         </div>
       </div>
 
       {/* Filter Bar */}
-      <Card className="border-border/70 shadow-sm">
+      <Card className="border-border/70 rounded-2xl shadow-xs">
         <CardContent className="p-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
             <div>
@@ -120,7 +125,7 @@ export const AdminReportsPage: React.FC = () => {
                   setTo('');
                   setPage(1);
                 }}
-                className="h-9 text-xs"
+                className="h-9 text-xs rounded-xl"
               />
             </div>
 
@@ -136,7 +141,7 @@ export const AdminReportsPage: React.FC = () => {
                   setDate('');
                   setPage(1);
                 }}
-                className="h-9 text-xs"
+                className="h-9 text-xs rounded-xl"
               />
             </div>
 
@@ -152,7 +157,7 @@ export const AdminReportsPage: React.FC = () => {
                   setDate('');
                   setPage(1);
                 }}
-                className="h-9 text-xs"
+                className="h-9 text-xs rounded-xl"
               />
             </div>
 
@@ -161,7 +166,7 @@ export const AdminReportsPage: React.FC = () => {
                 variant="outline"
                 size="sm"
                 onClick={handleResetFilters}
-                className="h-9 w-full text-xs gap-1"
+                className="h-9 w-full text-xs gap-1 rounded-xl"
               >
                 <RotateCcw className="w-3.5 h-3.5" /> Reset Filters
               </Button>
@@ -173,56 +178,56 @@ export const AdminReportsPage: React.FC = () => {
       {/* Summary Metrics */}
       {summary && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          <div className="rounded-xl border border-border/80 bg-card p-3 shadow-sm">
+          <div className="rounded-2xl border border-border/70 bg-card p-3.5 shadow-xs">
             <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block">
               Total Records
             </span>
-            <span className="text-xl font-bold text-foreground mt-0.5 block">
+            <span className="text-xl font-bold font-mono text-foreground mt-0.5 block">
               {summary.totalRecords || 0}
             </span>
           </div>
 
-          <div className="rounded-xl border border-border/80 bg-card p-3 shadow-sm">
+          <div className="rounded-2xl border border-border/70 bg-card p-3.5 shadow-xs">
             <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 block">
               Completed
             </span>
-            <span className="text-xl font-bold text-foreground mt-0.5 block">
+            <span className="text-xl font-bold font-mono text-foreground mt-0.5 block">
               {summary.workingStatus?.completed || 0}
             </span>
           </div>
 
-          <div className="rounded-xl border border-border/80 bg-card p-3 shadow-sm">
+          <div className="rounded-2xl border border-border/70 bg-card p-3.5 shadow-xs">
             <span className="text-[11px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 block">
               Incomplete
             </span>
-            <span className="text-xl font-bold text-foreground mt-0.5 block">
+            <span className="text-xl font-bold font-mono text-foreground mt-0.5 block">
               {summary.workingStatus?.incomplete || 0}
             </span>
           </div>
 
-          <div className="rounded-xl border border-border/80 bg-card p-3 shadow-sm">
+          <div className="rounded-2xl border border-border/70 bg-card p-3.5 shadow-xs">
             <span className="text-[11px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400 block">
               Missed
             </span>
-            <span className="text-xl font-bold text-foreground mt-0.5 block">
+            <span className="text-xl font-bold font-mono text-foreground mt-0.5 block">
               {summary.workingStatus?.missed || 0}
             </span>
           </div>
 
-          <div className="rounded-xl border border-border/80 bg-card p-3 shadow-sm">
+          <div className="rounded-2xl border border-border/70 bg-card p-3.5 shadow-xs">
             <span className="text-[11px] font-bold uppercase tracking-wider text-violet-600 dark:text-violet-400 block">
               Pending Audit
             </span>
-            <span className="text-xl font-bold text-foreground mt-0.5 block">
+            <span className="text-xl font-bold font-mono text-foreground mt-0.5 block">
               {summary.verificationStatus?.pending || 0}
             </span>
           </div>
 
-          <div className="rounded-xl border border-border/80 bg-card p-3 shadow-sm">
+          <div className="rounded-2xl border border-border/70 bg-card p-3.5 shadow-xs">
             <span className="text-[11px] font-bold uppercase tracking-wider text-orange-600 dark:text-orange-400 block">
               Pending OT
             </span>
-            <span className="text-xl font-bold text-foreground mt-0.5 block">
+            <span className="text-xl font-bold font-mono text-foreground mt-0.5 block">
               {summary.overtimeStatus?.pending || 0}
             </span>
           </div>
@@ -245,72 +250,61 @@ export const AdminReportsPage: React.FC = () => {
         />
       ) : (
         <div className="space-y-4">
-          <div className="border border-border/80 rounded-2xl bg-card overflow-hidden shadow-sm">
+          <div className="border border-border/70 rounded-2xl bg-card overflow-hidden shadow-xs">
             <div className="overflow-x-auto">
               <table className="w-full text-xs text-left">
-                <thead className="bg-muted/50 border-b border-border/70 text-muted-foreground uppercase tracking-wider font-semibold">
+                <thead className="bg-muted/40 border-b border-border/60 text-muted-foreground uppercase tracking-wider font-bold text-[11px]">
                   <tr>
-                    <th className="py-3 px-4">Staff Member</th>
-                    <th className="py-3 px-4">Date</th>
-                    <th className="py-3 px-4">Punch In</th>
-                    <th className="py-3 px-4">Punch Out</th>
-                    <th className="py-3 px-4">Duration</th>
-                    <th className="py-3 px-4">Shift Status</th>
-                    <th className="py-3 px-4">Verification</th>
-                    <th className="py-3 px-4">Overtime</th>
+                    <th className="py-3.5 px-4">Staff Member</th>
+                    <th className="py-3.5 px-4">Work Date</th>
+                    <th className="py-3.5 px-4">Clock-in & Out</th>
+                    <th className="py-3.5 px-4">Shift Status</th>
+                    <th className="py-3.5 px-4">Verification</th>
+                    <th className="py-3.5 px-4">Overtime</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border/60">
+                <tbody className="divide-y divide-border/50">
                   {rows.map((row, idx) => (
                     <tr
                       key={idx}
                       className="hover:bg-muted/30 transition-colors"
                     >
-                      <td className="py-3 px-4 font-semibold text-foreground">
-                        <div>{row.employeeName}</div>
-                        <div className="text-[11px] font-normal text-muted-foreground">
-                          {row.employeeEmail}
-                        </div>
+                      <td className="py-3.5 px-4">
+                        <EmployeeCell
+                          employee={
+                            {
+                              name: row.employeeName,
+                              email: row.employeeEmail,
+                            } as unknown as User
+                          }
+                        />
                       </td>
-                      <td className="py-3 px-4 font-medium text-foreground">
+                      <td className="py-3.5 px-4 font-semibold text-foreground whitespace-nowrap">
                         {row.workDate}
                       </td>
-                      <td className="py-3 px-4">
-                        {row.punchInAt
-                          ? new Date(row.punchInAt).toLocaleTimeString([], {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })
-                          : '—'}
+                      <td className="py-3.5 px-4">
+                        <AttendanceTimeline
+                          punchInAt={row.punchInAt}
+                          punchOutAt={row.punchOutAt}
+                          workedMinutes={row.workedMinutes}
+                          workingStatus={row.workingStatus}
+                        />
                       </td>
-                      <td className="py-3 px-4">
-                        {row.punchOutAt
-                          ? new Date(row.punchOutAt).toLocaleTimeString([], {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })
-                          : '—'}
-                      </td>
-                      <td className="py-3 px-4 font-medium">
-                        {row.workedMinutes != null
-                          ? `${row.workedMinutes}m (${row.workedHours}h)`
-                          : '—'}
-                      </td>
-                      <td className="py-3 px-4">
+                      <td className="py-3.5 px-4">
                         <StatusBadge
                           kind="working"
                           status={row.workingStatus}
                           size="sm"
                         />
                       </td>
-                      <td className="py-3 px-4">
+                      <td className="py-3.5 px-4">
                         <StatusBadge
                           kind="verification"
                           status={row.verificationStatus}
                           size="sm"
                         />
                       </td>
-                      <td className="py-3 px-4">
+                      <td className="py-3.5 px-4">
                         <StatusBadge
                           kind="overtime"
                           status={row.overtimeStatus}
@@ -326,13 +320,13 @@ export const AdminReportsPage: React.FC = () => {
             {meta && meta.totalPages > 1 && (
               <div className="p-3 border-t border-border/70 flex items-center justify-between text-xs text-muted-foreground bg-muted/20">
                 <span>
-                  Page {meta.page} of {meta.totalPages} ({meta.total} rows)
+                  Showing Page {meta.page} of {meta.totalPages} ({meta.total} rows total)
                 </span>
                 <div className="flex items-center gap-2">
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-7 text-xs"
+                    className="h-7 text-xs rounded-lg"
                     disabled={meta.page <= 1}
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
                   >
@@ -341,7 +335,7 @@ export const AdminReportsPage: React.FC = () => {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-7 text-xs"
+                    className="h-7 text-xs rounded-lg"
                     disabled={meta.page >= meta.totalPages}
                     onClick={() => setPage((p) => p + 1)}
                   >

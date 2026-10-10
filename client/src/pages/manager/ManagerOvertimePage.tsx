@@ -1,15 +1,14 @@
 import React, { useState } from 'react';
 import { PageHeader } from '../../components/common/PageHeader';
-import { Card, CardContent } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
-import { StatusBadge } from '../../components/common/StatusBadge';
 import { Skeletons } from '../../components/common/Skeletons';
 import { EmptyState } from '../../components/common/EmptyState';
 import { ErrorState } from '../../components/common/ErrorState';
 import { OvertimeReviewDialog } from '../../components/overtime/OvertimeReviewDialog';
+import { EmployeeCell } from '../../components/common/EmployeeCell';
 import { useGetPendingOvertimeQuery } from '../../features/attendance/attendanceApi';
 import type { Attendance, User } from '../../types/models';
-import { Clock, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Check, X, ChevronLeft, ChevronRight } from 'lucide-react';
 
 export const ManagerOvertimePage: React.FC = () => {
   const [page, setPage] = useState(1);
@@ -26,10 +25,19 @@ export const ManagerOvertimePage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Pending Overtime Requests"
-        description="Review and act on overtime requests submitted by your team for shifts exceeding 8 hours"
-      />
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <PageHeader
+            title="Permission & Overtime Requests"
+            description="Review and act on overtime requests submitted by your team for shifts exceeding 8 hours"
+          />
+        </div>
+        {records.length > 0 && (
+          <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+            {records.length} Pending Approval
+          </span>
+        )}
+      </div>
 
       {isLoading ? (
         <Skeletons count={4} />
@@ -46,86 +54,90 @@ export const ManagerOvertimePage: React.FC = () => {
         />
       ) : (
         <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {records.map((rec) => {
-              const emp =
-                typeof rec.employeeId === 'object' && rec.employeeId !== null
-                  ? (rec.employeeId as User)
-                  : null;
-              const recId = rec.id || rec._id;
-              const reqMinutes = rec.overtime?.requestedMinutes || 0;
+          <div className="border border-border/70 rounded-2xl bg-card overflow-hidden shadow-xs">
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs text-left">
+                <thead className="bg-muted/40 border-b border-border/60 text-muted-foreground uppercase tracking-wider font-bold text-[11px]">
+                  <tr>
+                    <th className="py-3.5 px-4">ID</th>
+                    <th className="py-3.5 px-4">Employee</th>
+                    <th className="py-3.5 px-4">Shift Date</th>
+                    <th className="py-3.5 px-4">Duration</th>
+                    <th className="py-3.5 px-4">Permission Details</th>
+                    <th className="py-3.5 px-4 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/50">
+                  {records.map((rec) => {
+                    const emp =
+                      typeof rec.employeeId === 'object' && rec.employeeId !== null
+                        ? (rec.employeeId as User)
+                        : null;
+                    const recId = rec.id || rec._id || '';
+                    const shortId = recId.slice(-5).toUpperCase();
+                    const reqMinutes = rec.overtime?.requestedMinutes || 0;
+                    const durationHours = (reqMinutes / 60).toFixed(1);
 
-              return (
-                <Card
-                  key={recId}
-                  className="border-border/70 hover:border-primary/40 hover:shadow-md transition-all duration-300 flex flex-col justify-between"
-                >
-                  <CardContent className="p-4 space-y-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <h4 className="font-bold text-sm text-foreground">
-                          {emp?.name || 'Employee'}
-                        </h4>
-                        <p className="text-xs text-muted-foreground">
-                          {emp?.email}
-                        </p>
-                      </div>
-                      <StatusBadge
-                        kind="overtime"
-                        status="pending"
-                        size="sm"
-                      />
-                    </div>
-
-                    <div className="rounded-xl bg-muted/30 p-2.5 text-xs space-y-1.5">
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Work Date:</span>
-                        <span className="font-medium text-foreground">
+                    return (
+                      <tr
+                        key={recId}
+                        className="hover:bg-muted/30 transition-colors"
+                      >
+                        <td className="py-3.5 px-4 font-mono text-muted-foreground">
+                          #{shortId}
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <EmployeeCell employee={emp} />
+                        </td>
+                        <td className="py-3.5 px-4 font-semibold text-foreground whitespace-nowrap">
                           {rec.workDate}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Total Shift:</span>
-                        <span className="font-medium text-foreground">
-                          {rec.workedMinutes != null
-                            ? `${rec.workedMinutes} mins (${(rec.workedMinutes / 60).toFixed(2)} hrs)`
-                            : 'N/A'}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Requested:</span>
-                        <span className="font-bold text-primary">
-                          +{reqMinutes} mins ({(reqMinutes / 60).toFixed(2)} hrs)
-                        </span>
-                      </div>
-                      <div className="pt-1 border-t border-border/60">
-                        <span className="text-muted-foreground block text-[11px] mb-0.5">
-                          Reason:
-                        </span>
-                        <p className="italic text-foreground line-clamp-2">
-                          &quot;{rec.overtime?.reason || 'No reason provided'}&quot;
-                        </p>
-                      </div>
-                    </div>
-
-                    <Button
-                      size="sm"
-                      className="w-full gap-1.5 text-xs"
-                      onClick={() => {
-                        setSelectedRecord(rec);
-                        setDialogOpen(true);
-                      }}
-                    >
-                      <Clock className="w-4 h-4" /> Review Overtime
-                    </Button>
-                  </CardContent>
-                </Card>
-              );
-            })}
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <span className="inline-flex items-center gap-1 font-bold text-primary px-2 py-0.5 rounded-md bg-primary/10">
+                            +{reqMinutes} mins ({durationHours}h)
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 max-w-xs">
+                          <p className="text-muted-foreground truncate" title={rec.overtime?.reason || undefined}>
+                            {rec.overtime?.reason || 'Extra shift hours'}
+                          </p>
+                        </td>
+                        <td className="py-3.5 px-4 text-right">
+                          <div className="inline-flex items-center gap-2">
+                            <Button
+                              size="sm"
+                              onClick={() => {
+                                setSelectedRecord(rec);
+                                setDialogOpen(true);
+                              }}
+                              className="h-8 px-3 rounded-xl text-xs font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs gap-1"
+                            >
+                              <Check className="w-3.5 h-3.5" /> Approve
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                setSelectedRecord(rec);
+                                setDialogOpen(true);
+                              }}
+                              className="h-8 w-8 rounded-xl text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                              title="Reject / Details"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
-
+          {/* Pagination Footer */}
           {meta && meta.totalPages > 1 && (
-            <div className="p-3 border border-border/70 rounded-xl flex items-center justify-between text-xs text-muted-foreground bg-card">
+            <div className="p-3 border border-border/70 rounded-2xl flex items-center justify-between text-xs text-muted-foreground bg-card">
               <span>
                 Page {meta.page} of {meta.totalPages} ({meta.total} requests)
               </span>
@@ -133,7 +145,7 @@ export const ManagerOvertimePage: React.FC = () => {
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-7 text-xs"
+                  className="h-7 text-xs rounded-lg"
                   disabled={meta.page <= 1}
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                 >
@@ -142,7 +154,7 @@ export const ManagerOvertimePage: React.FC = () => {
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-7 text-xs"
+                  className="h-7 text-xs rounded-lg"
                   disabled={meta.page >= meta.totalPages}
                   onClick={() => setPage((p) => p + 1)}
                 >

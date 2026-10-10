@@ -135,6 +135,11 @@ export const exportDailyReport = async (user, query, res) => {
     limit: 5000,
   });
 
+  const isTruncated = reportData.meta.total > 5000;
+  if (isTruncated) {
+    res.setHeader('X-Export-Truncated', 'true');
+  }
+
   const zone = getBusinessTimezone();
   const generatedAt = nowInBusinessTime(zone).toFormat('yyyy-MM-dd HH:mm:ss ZZZZ');
 
@@ -198,6 +203,12 @@ export const exportDailyReport = async (user, query, res) => {
       });
     }
 
+    if (isTruncated) {
+      sheet.insertRow(1, [
+        `NOTICE: Export is capped at 5000 rows (total records: ${reportData.meta.total})`,
+      ]);
+    }
+
     res.setHeader(
       'Content-Type',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -226,6 +237,13 @@ export const exportDailyReport = async (user, query, res) => {
     doc.moveDown(0.2);
     doc.fontSize(10).fillColor('#475569');
     doc.text(`Date Range: ${dateRangeLabel}  |  Generated At: ${generatedAt}`);
+    if (isTruncated) {
+      doc.moveDown(0.2);
+      doc
+        .fontSize(10)
+        .fillColor('#dc2626')
+        .text(`NOTICE: Export is capped at 5000 rows (total records: ${reportData.meta.total})`);
+    }
     doc.moveDown(0.8);
 
     // Table Header

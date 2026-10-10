@@ -4,9 +4,7 @@ import {
   Clock,
   Camera,
   RotateCcw,
-  MapPin,
 } from 'lucide-react';
-import { DateTime } from 'luxon';
 import { PageHeader } from '../../components/common/PageHeader';
 import { DataTable, type Column } from '../../components/common/DataTable';
 import { StatusBadge } from '../../components/common/StatusBadge';
@@ -16,6 +14,7 @@ import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Card, CardContent } from '../../components/ui/card';
+import { AttendanceTimeline } from '../../components/common/AttendanceTimeline';
 import { useGetMyAttendanceHistoryQuery } from '../../features/attendance/attendanceApi';
 import type { Attendance } from '../../types/models';
 
@@ -47,66 +46,25 @@ export const EmployeeHistoryPage: React.FC = () => {
     setPage(1);
   };
 
-  const formatTime = (isoString?: string | null) => {
-    if (!isoString) return '--:--';
-    return DateTime.fromISO(isoString).toFormat('hh:mm a');
-  };
-
-  const formatMinutes = (minutes?: number | null) => {
-    if (minutes === undefined || minutes === null) return '--';
-    const h = Math.floor(minutes / 60);
-    const m = minutes % 60;
-    return `${h}h ${m}m`;
-  };
-
   const columns: Column<Attendance>[] = [
     {
       header: 'Work Date',
       cell: (row) => (
-        <div className="flex items-center gap-2 font-medium whitespace-nowrap">
+        <div className="flex items-center gap-2 font-semibold whitespace-nowrap">
           <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
           <span>{row.workDate}</span>
         </div>
       ),
     },
     {
-      header: 'Punch In',
+      header: 'Clock-in & Out',
       cell: (row) => (
-        <div className="space-y-0.5 whitespace-nowrap">
-          <div className="font-mono text-xs font-medium">
-            {formatTime(row.punchIn?.at)}
-          </div>
-          {row.punchIn?.location && (
-            <div className="text-[11px] text-muted-foreground flex items-center gap-1">
-              <MapPin className="w-3 h-3 text-emerald-500" />
-              <span>±{Math.round(row.punchIn.location.accuracy)}m</span>
-            </div>
-          )}
-        </div>
-      ),
-    },
-    {
-      header: 'Punch Out',
-      cell: (row) => (
-        <div className="space-y-0.5 whitespace-nowrap">
-          <div className="font-mono text-xs font-medium">
-            {formatTime(row.punchOut?.at)}
-          </div>
-          {row.punchOut?.location && (
-            <div className="text-[11px] text-muted-foreground flex items-center gap-1">
-              <MapPin className="w-3 h-3 text-amber-500" />
-              <span>±{Math.round(row.punchOut.location.accuracy)}m</span>
-            </div>
-          )}
-        </div>
-      ),
-    },
-    {
-      header: 'Duration',
-      cell: (row) => (
-        <span className="font-mono font-medium whitespace-nowrap">
-          {formatMinutes(row.workedMinutes)}
-        </span>
+        <AttendanceTimeline
+          punchInAt={row.punchIn?.at}
+          punchOutAt={row.punchOut?.at}
+          workedMinutes={row.workedMinutes}
+          workingStatus={row.workingStatus}
+        />
       ),
     },
     {

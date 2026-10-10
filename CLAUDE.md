@@ -34,11 +34,13 @@ Controllers are thin (parse validated input, call service, shape response). Busi
 ## 3. Roles and rules
 
 Roles: `employee`, `manager`, `admin`. Public signup ALWAYS creates `employee` (role in payload is rejected by strict Zod schema).
-- All three roles can punch in/out and request overtime for their own attendance.
-- Employee has `managerId` → an active `manager`. Manager and admin have `managerId = null` (enforced).
-- Reviewers: employee records → that employee's manager OR any admin. Manager records → admins only. Admin records → another admin (never self). If no other admin exists, the record stays pending.
-- Nobody reviews (verification or overtime) their own record, regardless of role.
+- Workforce roles: `employee`, `manager`. Admin is an administrative-only role: no punch in/out, no personal attendance records, no overtime requests, no shift alerts.
+- Admin calls to workforce endpoints (`POST /attendance/punch-in`, `POST /attendance/punch-out`, `GET /attendance/today`, `GET /attendance/me`, `POST /attendance/:id/overtime`) return `403 ADMIN_NOT_ELIGIBLE` (checked by shared `requireWorkforce` middleware before upload parsing, with service defence-in-depth).
+- Employee has `managerId` → an active `manager` (or null if unassigned). Manager and admin have `managerId = null` (enforced).
+- Reviewer matrix: employee records → that employee's manager OR any admin. Manager records → admins only. There are no admin attendance records, so peer-admin review does not exist.
+- Nobody reviews (verification or overtime) their own record, regardless of role. Manager self-review is blocked (`403 FORBIDDEN`).
 - Manager scope = users with `managerId === manager._id` and `isActive` not required (inactive team members' history stays visible). Out-of-scope access returns `404 NOT_FOUND` (do not reveal existence) for single-resource routes and is silently excluded from lists.
+- Employee with no assigned manager: their overtime requests and review queue go to admins only; notification fallback = all active admins.
 - Backend enforces everything; frontend hiding is only UX.
 - Never trust client-supplied: role, employeeId, reviewer, timestamps, workDate, duration, statuses.
 
@@ -47,6 +49,7 @@ Admin user management (`PATCH /api/users/:id`, admin only, strict schema `{name?
 - Cannot demote/deactivate the last active admin.
 - Setting role to `manager`/`admin` forces `managerId = null`.
 - A manager with active team members cannot be demoted or deactivated → `409 HAS_TEAM_MEMBERS` until members are reassigned.
+- Promoting someone to admin (`role === 'admin'`) or deactivating them (`isActive === false`) while they have an `in_progress` attendance record → `409 OPEN_SHIFT`. Existing history remains in org-wide reports.
 - `managerId` must reference an existing active manager, must not equal the user's own id; only valid for role `employee`.
 - Deactivation takes effect immediately: auth middleware loads the user from DB on every request and rejects inactive users.
 
@@ -122,10 +125,10 @@ Types: `overtime_requested`, `overtime_approved`, `overtime_rejected`, `attendan
 
 Success: `{ "success": true, "data": ..., "meta"?: { page, limit, total, totalPages } }`.
 Error: `{ "success": false, "error": { "code": "STRING_CODE", "message": "...", "details"?: [...] } }`.
-Status codes: 200, 201, 400 `VALIDATION_ERROR`, 401 `UNAUTHENTICATED|TOKEN_EXPIRED|INVALID_CREDENTIALS`, 403 `FORBIDDEN|ACCOUNT_INACTIVE|BAD_ORIGIN`, 404 `NOT_FOUND`, 409 conflict codes, 413 `FILE_TOO_LARGE`, 415 `UNSUPPORTED_MEDIA_TYPE`, 422 location rules, 429 `RATE_LIMITED`, 500 `INTERNAL_ERROR`.
+Status codes: 200, 201, 400 `VALIDATION_ERROR`, 401 `UNAUTHENTICATED|TOKEN_EXPIRED|INVALID_CREDENTIALS`, 403 `FORBIDDEN|ADMIN_NOT_ELIGIBLE|ACCOUNT_INACTIVE|BAD_ORIGIN`, 404 `NOT_FOUND`, 409 conflict codes (`ALREADY_PUNCHED_IN|NO_OPEN_ATTENDANCE|HAS_TEAM_MEMBERS|OPEN_SHIFT|INVALID_TRANSITION`), 413 `FILE_TOO_LARGE`, 415 `UNSUPPORTED_MEDIA_TYPE`, 422 location rules, 429 `RATE_LIMITED`, 500 `INTERNAL_ERROR`, 502 `STORAGE_UNAVAILABLE`.
 Pagination on every list endpoint: `page` (default 1), `limit` (default 20, max 100). Dates are `YYYY-MM-DD` business dates.
 
-Endpoints (all under `/api`; `A`=any authenticated, role letters E/M/Ad):
+Endpoints (all under `/api`; `A`=any authenticated, workforce `W`=E,M, role letters E/M/Ad):
 ```
 GET  /health                                     public
 POST /auth/signup | /auth/login | /auth/logout   public (logout: A)
@@ -138,22 +141,22 @@ GET   /users/managers         Ad  active managers (for assignment dropdown)
 GET   /users/:id              Ad
 PATCH /users/:id              Ad
 
-GET  /attendance/today                           A   own record for today or null
-GET  /attendance/me                              A   from, to, workingStatus, page, limit
+GET  /attendance/today                           W   own record for today or null (admin → 403 ADMIN_NOT_ELIGIBLE)
+GET  /attendance/me                              W   from, to, workingStatus, page, limit (admin → 403 ADMIN_NOT_ELIGIBLE)
 GET  /attendance/team                            M   from, to, userId, workingStatus, verificationStatus, overtimeStatus
 GET  /attendance                                 Ad  same filters + role
 GET  /attendance/:id                             A   authorised by scope
-POST /attendance/punch-in                        A   multipart
-POST /attendance/punch-out                       A   multipart (acts on caller's open record; no id in URL)
-GET  /attendance/:id/selfies/:kind               A   authorised by scope
-PATCH /attendance/:id/verification               M,Ad  {status: valid|invalid, remarks?}
-POST  /attendance/:id/overtime                   A   owner only {requestedMinutes, reason}
-PATCH /attendance/:id/overtime/review            M,Ad  {decision: approved|rejected, remarks?}
+POST /attendance/punch-in                        W   multipart (admin → 403 ADMIN_NOT_ELIGIBLE before upload)
+POST /attendance/punch-out                       W   multipart (acts on caller's open record; admin → 403 before upload)
+GET  /attendance/:id/selfies/:kind               A   authorised by scope (seeded records without selfie → 404)
+PATCH /attendance/:id/verification               M,Ad  {status: valid|invalid, remarks?} (no self-review: 403)
+POST  /attendance/:id/overtime                   W   owner only {requestedMinutes, reason} (admin → 403 ADMIN_NOT_ELIGIBLE)
+PATCH /attendance/:id/overtime/review            M,Ad  {decision: approved|rejected, remarks?} (no self-review: 403)
 GET   /overtime/pending                          M,Ad  pending overtime in scope (page, limit)
 
 GET /reports/daily                               A   date OR from+to, userId, page, limit; scoped by role
-GET /reports/daily/export?format=xlsx|pdf        A   same filters, same scoping, max 5000 rows
-GET /dashboard/summary                           A   role-scoped real counts
+GET /reports/daily/export?format=xlsx|pdf        A   same filters, same scoping, max 5000 rows (truncated header if >5000)
+GET /dashboard/summary                           A   role-scoped real counts (admin summary counts workforce only)
 GET/PUT /settings/geofence                       Ad only
 GET   /notifications  (unreadOnly, page, limit) | GET /notifications/unread-count | PATCH /notifications/:id/read | PATCH /notifications/read-all    A
 ```
@@ -165,17 +168,17 @@ Export: Excel and PDF contain the same rows as text columns (location as "lat, l
 `GET /dashboard/summary` returns:
 - employee: last 30 business days → completedDays, incompleteDays, missedDays, totalWorkedMinutes, pendingOvertime, approvedOvertimeMinutes, invalidDays.
 - manager: today → teamSize, punchedIn, notYetPunchedIn, completed, incomplete, pendingVerification, pendingOvertime.
-- admin: totalUsers by role, activeUsers, today → punchedIn, completed, incomplete, missed, pendingVerification, pendingOvertime.
+- admin: totalUsers by role, activeUsers, today → punchedIn, completed, incomplete, missed, pendingVerification, pendingOvertime (counts workforce only; admin has no personal summary).
 
 ## 10. Notifications, jobs and realtime
 
 Notification triggers (created in `notification.service.js`, which also emits over Socket.IO):
-- Overtime requested → the employee's manager + all admins (admins only if the requester is a manager/admin; never the requester).
+- Overtime requested → the employee's manager (if exists) + all active admins (if requester is a manager or employee has no manager; never the requester).
 - Overtime approved/rejected → the employee.
 - Verification set valid/invalid → the employee.
-- Missed punch-in alert → employee, at `MISSED_PUNCH_IN_ALERT_TIME` (default `11:00`) on working days when no record exists for today.
-- Missed punch-out alert → employee, at `MISSED_PUNCH_OUT_ALERT_TIME` (default `20:00`) when today's record is still `in_progress`.
-- Auto-close → employee + their manager (`attendance_auto_closed`), at `AUTO_CLOSE_TIME` (default `00:10`) for any `in_progress` record with `workDate` < today.
+- Missed punch-in alert → ACTIVE employee/manager, at `MISSED_PUNCH_IN_ALERT_TIME` (default `11:00`) on working days when no record exists for today.
+- Missed punch-out alert → ACTIVE employee/manager, at `MISSED_PUNCH_OUT_ALERT_TIME` (default `20:00`) when today's record is still `in_progress`.
+- Auto-close → workforce user + their manager (`attendance_auto_closed`), at `AUTO_CLOSE_TIME` (default `00:10`) for any `in_progress` record with `workDate` < today. Closes open records of any workforce user (including inactive ones), but sends no notification to inactive users.
 Jobs in `server/src/jobs/` using node-cron with `timezone: BUSINESS_TIMEZONE`, enabled when `ENABLE_CRON=true`. Alerts are idempotent: never create the same alert type for the same user and workDate twice (check before insert). Single-instance assumption is documented. Lazy auto-close at punch-in covers server sleep on free hosting.
 
 Socket.IO (`server/src/realtime/`): client connects directly to `VITE_SOCKET_URL` (Vercel cannot proxy WebSockets) with `auth: { token: <socket-token> }` fetched from `/auth/socket-token`; server verifies `purpose==='socket'`, loads the user, rejects inactive. CORS = `CLIENT_ORIGIN`, credentials true. Rooms: `user:<id>`, plus `role:admin` for admins. Events emitted after the DB write succeeded:
@@ -185,7 +188,9 @@ Client: on `attendance:updated` call `api.util.invalidateTags` for attendance/re
 
 ## 11. Frontend
 
-Routes: `/login`, `/signup`, `/` (redirect by role), `/employee`, `/employee/history`, `/manager`, `/manager/review`, `/manager/overtime`, `/manager/reports`, `/admin`, `/admin/users`, `/admin/attendance`, `/admin/review`, `/admin/overtime`, `/admin/reports`, `/admin/settings`, `/notifications`, `*` (404). Manager/admin also have `/employee` so they can punch in. A `ProtectedRoute` component takes `allowedRoles`; the session is restored from `/auth/me` on load (never from stored role).
+Routes: `/login`, `/signup`, `/` (redirect by role), `/employee`, `/employee/history`, `/manager`, `/manager/review`, `/manager/overtime`, `/manager/reports`, `/admin`, `/admin/users`, `/admin/attendance`, `/admin/review`, `/admin/overtime`, `/admin/reports`, `/admin/settings`, `/notifications`, `*` (404).
+Workforce portal routes `/employee*` allow roles: `employee`, `manager`. Admin is never a workforce user: admin is redirected to `/admin` and never sees punch UI, "My attendance", employee history, personal summary, or shift timer. Manager sidebar has both team pages and "My attendance".
+ProtectedRoute checks `allowedRoles`; session is restored from `/auth/me` on load (never from stored role). If `/auth/me` returns 401 on an unauthenticated visit to `/login`, no toast is shown.
 RTK Query: one `api` slice with `injectEndpoints` per feature; tag types `Me, User, Attendance, Today, Overtime, Report, Dashboard, Notification, Settings`; invalidate precisely after mutations. Redux slices only for UI state that must be global (auth session flag, theme). Do not copy server data into slices.
 UI: Tailwind + shadcn/ui, consistent tokens as CSS variables, dark mode via `class` strategy: default follows `prefers-color-scheme`, user toggle persisted in `localStorage` (`theme`), applied before first paint to avoid flash. Layout: sidebar (desktop), top bar + sheet menu (mobile), notification bell with unread badge. Tables: responsive (horizontal scroll or card layout on mobile), loading skeletons, empty states, error states with retry. Confirm dialogs for reject/invalid. Status badges: working (`in_progress`, `completed`, `incomplete`, `missed`), verification, overtime, each with distinct color AND text (never color alone). WCAG basics: labels, focus rings, `aria-live` for toasts and camera errors, keyboard-operable dialogs. Dashboard numbers come only from API.
 Selfie review: dialog with punch-in and punch-out images side by side (via the selfie endpoint), coordinates with "Open in maps" link (`https://www.google.com/maps?q=lat,lng`), geofence distance, times, worked minutes, history of past decisions, remarks textarea, Valid / Invalid buttons.
@@ -193,13 +198,16 @@ Selfie review: dialog with punch-in and punch-out images side by side (via the s
 ## 12. Testing (minimum required, all must pass)
 
 Backend, with mongodb-memory-server and the fake storage adapter:
-Auth/RBAC: signup creates employee and ignores/rejects role; duplicate email 409; wrong password 401; no cookie 401; inactive user 403 on login and on existing token; employee cannot read another's attendance (404); manager cannot read another team (404); employee cannot review verification/overtime (403); admin sees all; role cannot be self-escalated; user PATCH rules (last admin, HAS_TEAM_MEMBERS).
+Auth/RBAC: signup creates employee and ignores/rejects role; duplicate email 409; wrong password 401; no cookie 401; inactive user 403 on login and on existing token; employee cannot read another's attendance (404); manager cannot read another team (404); employee cannot review verification/overtime (403); admin sees all; role cannot be self-escalated; user PATCH rules (last admin, HAS_TEAM_MEMBERS, OPEN_SHIFT).
+Workforce gating: admin calling punch-in/punch-out/today/me/overtime receives 403 ADMIN_NOT_ELIGIBLE and no attendance document or Cloudinary upload is created.
+Reviewer matrix: manager reviewing own record → 403; manager reviewing another manager's team member → 404; manager reviewing a manager's record → 403/404; employee without manager overtime succeeds and notifies all active admins; manager reassignment dynamically transfers scope.
+Concurrent double-review: two simultaneous overtime reviews or verification updates on the same record → exactly one transition succeeds, other gets 409 INVALID_TRANSITION.
 Attendance: punch-in creates; duplicate punch-in 409; punch-out without punch-in 409; duplicate punch-out 409; missing selfie/location 400; invalid coordinates 400; wrong mimetype 415; bad magic bytes 415; oversize 413; server timestamps ignore client-supplied time; concurrent `Promise.all` of 10 punch-ins yields exactly one record and 9 conflicts; concurrent punch-outs yields one success.
 Working hours (service unit tests with controlled clock): 479 → incomplete, 480 → completed, 481 → completed, open → in_progress, out ≤ in rejected, auto-close → missed.
 Geofence: inside OK, outside 422, low accuracy 422, disabled skips.
 Verification/overtime: reviewer scope; no self-review; invalid requires remarks; history appended; overtime eligibility matrix (not completed, ≤ 480, over max minutes, invalid verification, duplicate pending, resubmit after reject OK); only pending can be reviewed; approving invalid-attendance blocked.
-Reports/export: scoping per role; required fields; date filter and range; xlsx/pdf export respects scope and returns correct content type.
-Notifications: created for each trigger, recipients correct, alerts idempotent, unread count, mark read only own.
+Reports/export: scoping per role; required fields; date filter and range; xlsx/pdf export respects scope and returns correct content type; zero rows returns valid empty file; > 5000 rows capped with header notice.
+Notifications: created for each trigger, recipients correct, alerts idempotent, unread count, mark read only own; jobs exclude admins and alerts sent only to active users.
 Socket: authenticated connect, rejected with bad/expired/wrong-purpose token, event delivered to correct rooms only.
 Frontend: ProtectedRoute redirects; status badge mapping; camera component stops tracks on unmount (mocked `getUserMedia`); login form validation.
 
@@ -210,7 +218,7 @@ Frontend: ProtectedRoute redirects; status badge mapping; camera component stops
 
 ## 14. Scripts
 
-Server: `dev` (node --watch), `start`, `test`, `lint`, `seed:admin` (idempotent; creates/updates nothing if the admin email exists; reads `ADMIN_*`; refuses weak passwords), `seed:demo` (refuses when `NODE_ENV=production`; creates 1 admin, 2 managers, 6 employees, 14 days of varied attendance using the fake-storage placeholder or skips selfies; password from `DEMO_PASSWORD`).
+Server: `dev` (node --watch), `start`, `test`, `lint`, `seed:admin`, `seed:demo` (creates 1 admin without attendance, 2 managers, 6 employees, 14 days of varied attendance; password from `DEMO_PASSWORD`), `db:purge-admin-attendance` (`server/src/scripts/purge-admin-attendance.js`).
 Client: `dev`, `build`, `lint`, `test`, `preview`.
 
 ## 15. Deployment
@@ -223,4 +231,17 @@ Client: `dev`, `build`, `lint`, `test`, `preview`.
 
 ## 16. README must contain
 
-Prerequisites, install, env vars table, MongoDB + Cloudinary setup, running locally, seeding admin/demo, assigning managers (via admin Users page), architecture overview + diagram (text/mermaid), data model summary, API overview, RBAC matrix, business rules, features implemented (checklist: mandatory / good-to-have / bonus, each marked done or not), testing instructions, deployment steps, assumptions, known limitations. Assumptions to list explicitly: BUSINESS_TIMEZONE, one record per employee per day, floor-minutes, no break policy, overtime = time beyond 8 h, all roles may punch, reviewer matrix, lazy auto-close, single-instance cron, same-origin proxy cookies, selfies proxied through the API.
+Prerequisites, install, env vars table, MongoDB + Cloudinary setup, running locally, seeding admin/demo, assigning managers (via admin Users page), architecture overview + diagram (text/mermaid), data model summary, API overview, RBAC matrix, business rules, features implemented (checklist: mandatory / good-to-have / bonus, each marked done or not), testing instructions, deployment steps, assumptions, known limitations. Assumptions to list explicitly:
+1. Manager self-attendance is an implementation assumption (the assignment only describes employee punch-in/out);
+2. Admin is administrative-only: no punch-in/out, no personal attendance records, no overtime requests, no shift alerts;
+3. Shifts crossing business midnight are not supported (auto-close at AUTO_CLOSE_TIME marks them missed);
+4. Scope is evaluated at request time (if a manager is reassigned, authority over pending items moves with the employee);
+5. BUSINESS_TIMEZONE (default Asia/Kolkata);
+6. One record per employee per day;
+7. floor-minutes, no break policy;
+8. Overtime = time beyond 8 hours;
+9. Reviewer matrix: employee records → manager or admin; manager records → admins only; no self-review;
+10. Lazy auto-close covers server sleep;
+11. Single-instance cron;
+12. Same-origin proxy cookies;
+13. Selfies proxied through authenticated API.

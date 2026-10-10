@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { PageHeader } from '../../components/common/PageHeader';
-import { Card, CardContent } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { StatusBadge } from '../../components/common/StatusBadge';
@@ -8,6 +8,9 @@ import { Skeletons } from '../../components/common/Skeletons';
 import { EmptyState } from '../../components/common/EmptyState';
 import { ErrorState } from '../../components/common/ErrorState';
 import { AttendanceReviewDialog } from '../../components/review/AttendanceReviewDialog';
+import { TabNavigation, type TabItem } from '../../components/common/TabNavigation';
+import { EmployeeCell } from '../../components/common/EmployeeCell';
+import { AttendanceTimeline } from '../../components/common/AttendanceTimeline';
 import { useGetAllAttendanceQuery } from '../../features/attendance/attendanceApi';
 import type {
   Attendance,
@@ -17,13 +20,15 @@ import type {
   OvertimeStatus,
 } from '../../types/models';
 import {
+  Download,
+  Search,
   RotateCcw,
-  Eye,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
 
 export const AdminAttendancePage: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'overtime'>('all');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [role, setRole] = useState<string>('');
@@ -33,17 +38,24 @@ export const AdminAttendancePage: React.FC = () => {
   >('');
   const [overtimeStatus, setOvertimeStatus] = useState<OvertimeStatus | ''>('');
   const [page, setPage] = useState(1);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const [selectedRecord, setSelectedRecord] = useState<Attendance | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+
+  // Effective tab filters
+  const effectiveVerificationStatus =
+    activeTab === 'pending' ? 'pending' : verificationStatus || undefined;
+  const effectiveOvertimeStatus =
+    activeTab === 'overtime' ? 'pending' : overtimeStatus || undefined;
 
   const queryParams = {
     from: from || undefined,
     to: to || undefined,
     role: role || undefined,
     workingStatus: workingStatus || undefined,
-    verificationStatus: verificationStatus || undefined,
-    overtimeStatus: overtimeStatus || undefined,
+    verificationStatus: effectiveVerificationStatus,
+    overtimeStatus: effectiveOvertimeStatus,
     page,
     limit: 15,
   };
@@ -58,126 +70,138 @@ export const AdminAttendancePage: React.FC = () => {
     setWorkingStatus('');
     setVerificationStatus('');
     setOvertimeStatus('');
+    setSearchQuery('');
     setPage(1);
   };
 
-  const records = data?.data || [];
+  const rawRecords = data?.data || [];
+  const records = searchQuery
+    ? rawRecords.filter((rec) => {
+        const emp =
+          typeof rec.employeeId === 'object' && rec.employeeId !== null
+            ? (rec.employeeId as User)
+            : null;
+        return (
+          emp?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          emp?.email?.toLowerCase().includes(searchQuery.toLowerCase())
+        );
+      })
+    : rawRecords;
   const meta = data?.meta;
+
+  const tabs: TabItem[] = [
+    { id: 'all', label: 'All Records', count: meta?.total },
+    { id: 'pending', label: 'Pending Verification' },
+    { id: 'overtime', label: 'Overtime Requests' },
+  ];
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="System Attendance Records"
-        description="Search, audit, and inspect shift history and selfies across all employees, managers, and administrators"
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <PageHeader
+            title="System Attendance Records"
+            description="Audit, inspect, and verify shifts across all employees, managers, and administrators"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <Link to="/admin/reports">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 h-9 rounded-xl text-xs font-semibold hover:border-primary hover:text-primary transition-all"
+            >
+              <Download className="w-3.5 h-3.5" /> Export CSV
+            </Button>
+          </Link>
+        </div>
+      </div>
+
+      {/* Navigation Tabs */}
+      <TabNavigation
+        tabs={tabs}
+        activeTab={activeTab}
+        onChange={(id) => {
+          setActiveTab(id as 'all' | 'pending' | 'overtime');
+          setPage(1);
+        }}
       />
 
-      {/* Filter Bar */}
-      <Card className="border-border/70 shadow-sm">
-        <CardContent className="p-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-            <div>
-              <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
-                From Date
-              </label>
-              <Input
-                type="date"
-                value={from}
-                onChange={(e) => {
-                  setFrom(e.target.value);
-                  setPage(1);
-                }}
-                className="h-9 text-xs"
-              />
-            </div>
+      {/* Filter and Search Bar */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pt-1">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+          <Input
+            placeholder="Search employee by name or email..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9 h-9 text-xs rounded-xl"
+          />
+        </div>
 
-            <div>
-              <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
-                To Date
-              </label>
-              <Input
-                type="date"
-                value={to}
-                onChange={(e) => {
-                  setTo(e.target.value);
-                  setPage(1);
-                }}
-                className="h-9 text-xs"
-              />
-            </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={role}
+            onChange={(e) => {
+              setRole(e.target.value);
+              setPage(1);
+            }}
+            className="h-9 rounded-xl border border-input bg-card px-3 text-xs font-medium focus:ring-2 focus:ring-primary/20"
+          >
+            <option value="">All Roles</option>
+            <option value="employee">Employees</option>
+            <option value="manager">Managers</option>
+            <option value="admin">Administrators</option>
+          </select>
 
-            <div>
-              <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
-                Role Filter
-              </label>
-              <select
-                value={role}
-                onChange={(e) => {
-                  setRole(e.target.value);
-                  setPage(1);
-                }}
-                className="w-full h-9 rounded-md border border-input bg-background px-2.5 text-xs focus:ring-2 focus:ring-primary/20 focus:border-primary"
-              >
-                <option value="">All Roles</option>
-                <option value="employee">Employees</option>
-                <option value="manager">Managers</option>
-                <option value="admin">Administrators</option>
-              </select>
-            </div>
+          <select
+            value={workingStatus}
+            onChange={(e) => {
+              setWorkingStatus(e.target.value as WorkingStatus | '');
+              setPage(1);
+            }}
+            className="h-9 rounded-xl border border-input bg-card px-3 text-xs font-medium focus:ring-2 focus:ring-primary/20"
+          >
+            <option value="">All Shift Statuses</option>
+            <option value="in_progress">In Progress</option>
+            <option value="completed">Completed (8+ h)</option>
+            <option value="incomplete">Incomplete (&lt;8 h)</option>
+            <option value="missed">Missed / Auto-closed</option>
+          </select>
 
-            <div>
-              <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
-                Shift Status
-              </label>
-              <select
-                value={workingStatus}
-                onChange={(e) => {
-                  setWorkingStatus(e.target.value as WorkingStatus | '');
-                  setPage(1);
-                }}
-                className="w-full h-9 rounded-md border border-input bg-background px-2.5 text-xs focus:ring-2 focus:ring-primary/20 focus:border-primary"
-              >
-                <option value="">All Statuses</option>
-                <option value="in_progress">In Progress</option>
-                <option value="completed">Completed (8+ h)</option>
-                <option value="incomplete">Incomplete (&lt;8 h)</option>
-                <option value="missed">Missed / Auto-closed</option>
-              </select>
-            </div>
+          <Input
+            type="date"
+            value={from}
+            onChange={(e) => {
+              setFrom(e.target.value);
+              setPage(1);
+            }}
+            className="h-9 w-36 text-xs rounded-xl"
+            title="From date"
+          />
 
-            <div>
-              <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
-                Verification
-              </label>
-              <select
-                value={verificationStatus}
-                onChange={(e) => {
-                  setVerificationStatus(
-                    e.target.value as VerificationStatus | ''
-                  );
-                  setPage(1);
-                }}
-                className="w-full h-9 rounded-md border border-input bg-background px-2.5 text-xs focus:ring-2 focus:ring-primary/20 focus:border-primary"
-              >
-                <option value="">All Verification</option>
-                <option value="pending">Pending</option>
-                <option value="valid">Valid</option>
-                <option value="invalid">Invalid</option>
-              </select>
-            </div>
+          <Input
+            type="date"
+            value={to}
+            onChange={(e) => {
+              setTo(e.target.value);
+              setPage(1);
+            }}
+            className="h-9 w-36 text-xs rounded-xl"
+            title="To date"
+          />
 
-            <div className="flex items-end">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleResetFilters}
-                className="h-9 w-full text-xs gap-1"
-              >
-                <RotateCcw className="w-3.5 h-3.5" /> Reset
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleResetFilters}
+            className="h-9 text-xs gap-1 rounded-xl"
+            title="Reset filters"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+          </Button>
+        </div>
+      </div>
 
       {/* Attendance Table */}
       {isLoading ? (
@@ -195,68 +219,52 @@ export const AdminAttendancePage: React.FC = () => {
         />
       ) : (
         <div className="space-y-4">
-          <div className="border border-border/80 rounded-2xl bg-card overflow-hidden shadow-sm">
+          <div className="border border-border/70 rounded-2xl bg-card overflow-hidden shadow-xs">
             <div className="overflow-x-auto">
               <table className="w-full text-xs text-left">
-                <thead className="bg-muted/50 border-b border-border/70 text-muted-foreground uppercase tracking-wider font-semibold">
+                <thead className="bg-muted/40 border-b border-border/60 text-muted-foreground uppercase tracking-wider font-bold text-[11px]">
                   <tr>
-                    <th className="py-3 px-4">Staff Member</th>
-                    <th className="py-3 px-4">Role</th>
-                    <th className="py-3 px-4">Date</th>
-                    <th className="py-3 px-4">Punch In</th>
-                    <th className="py-3 px-4">Punch Out</th>
-                    <th className="py-3 px-4">Duration</th>
-                    <th className="py-3 px-4">Shift Status</th>
-                    <th className="py-3 px-4">Verification</th>
-                    <th className="py-3 px-4">Overtime</th>
-                    <th className="py-3 px-4 text-right">Actions</th>
+                    <th className="py-3.5 px-4">Employee</th>
+                    <th className="py-3.5 px-4">Role</th>
+                    <th className="py-3.5 px-4">Work Date</th>
+                    <th className="py-3.5 px-4">Clock-in & Out</th>
+                    <th className="py-3.5 px-4">Shift Status</th>
+                    <th className="py-3.5 px-4">Verification</th>
+                    <th className="py-3.5 px-4">Overtime</th>
+                    <th className="py-3.5 px-4 text-right">Action</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border/60">
+                <tbody className="divide-y divide-border/50">
                   {records.map((rec) => {
                     const emp =
                       typeof rec.employeeId === 'object' &&
                       rec.employeeId !== null
                         ? (rec.employeeId as User)
                         : null;
-                    const punchInTime = rec.punchIn?.at
-                      ? new Date(rec.punchIn.at).toLocaleTimeString([], {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })
-                      : '—';
-                    const punchOutTime = rec.punchOut?.at
-                      ? new Date(rec.punchOut.at).toLocaleTimeString([], {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })
-                      : '—';
 
                     return (
                       <tr
                         key={rec.id || rec._id}
                         className="hover:bg-muted/30 transition-colors"
                       >
-                        <td className="py-3 px-4 font-semibold text-foreground">
-                          <div>{emp?.name || 'User'}</div>
-                          <div className="text-[11px] font-normal text-muted-foreground">
-                            {emp?.email}
-                          </div>
+                        <td className="py-3 px-4">
+                          <EmployeeCell employee={emp} />
                         </td>
                         <td className="py-3 px-4">
-                          <span className="capitalize text-muted-foreground font-medium">
+                          <span className="capitalize text-muted-foreground font-semibold px-2 py-0.5 rounded-full bg-muted/60 text-[11px]">
                             {emp?.role || 'employee'}
                           </span>
                         </td>
-                        <td className="py-3 px-4 font-medium text-foreground">
+                        <td className="py-3 px-4 font-semibold text-foreground whitespace-nowrap">
                           {rec.workDate}
                         </td>
-                        <td className="py-3 px-4">{punchInTime}</td>
-                        <td className="py-3 px-4">{punchOutTime}</td>
                         <td className="py-3 px-4">
-                          {rec.workedMinutes != null
-                            ? `${rec.workedMinutes}m (${(rec.workedMinutes / 60).toFixed(1)}h)`
-                            : 'In progress'}
+                          <AttendanceTimeline
+                            punchInAt={rec.punchIn?.at}
+                            punchOutAt={rec.punchOut?.at}
+                            workedMinutes={rec.workedMinutes}
+                            workingStatus={rec.workingStatus}
+                          />
                         </td>
                         <td className="py-3 px-4">
                           <StatusBadge
@@ -281,15 +289,15 @@ export const AdminAttendancePage: React.FC = () => {
                         </td>
                         <td className="py-3 px-4 text-right">
                           <Button
-                            variant="ghost"
+                            variant="outline"
                             size="sm"
-                            className="h-8 gap-1 text-xs"
+                            className="h-8 rounded-xl text-xs font-semibold hover:border-primary hover:text-primary transition-all"
                             onClick={() => {
                               setSelectedRecord(rec);
                               setDialogOpen(true);
                             }}
                           >
-                            <Eye className="w-3.5 h-3.5" /> Review
+                            Review
                           </Button>
                         </td>
                       </tr>
@@ -302,13 +310,13 @@ export const AdminAttendancePage: React.FC = () => {
             {meta && meta.totalPages > 1 && (
               <div className="p-3 border-t border-border/70 flex items-center justify-between text-xs text-muted-foreground bg-muted/20">
                 <span>
-                  Page {meta.page} of {meta.totalPages} ({meta.total} records)
+                  Showing Page {meta.page} of {meta.totalPages} ({meta.total} records total)
                 </span>
                 <div className="flex items-center gap-2">
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-7 text-xs"
+                    className="h-7 text-xs rounded-lg"
                     disabled={meta.page <= 1}
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
                   >
@@ -317,7 +325,7 @@ export const AdminAttendancePage: React.FC = () => {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-7 text-xs"
+                    className="h-7 text-xs rounded-lg"
                     disabled={meta.page >= meta.totalPages}
                     onClick={() => setPage((p) => p + 1)}
                   >

@@ -56,3 +56,22 @@ export const authorize = (...roles) => {
     next();
   };
 };
+
+export const requireWorkforce = (req, _res, next) => {
+  if (!req.user) {
+    return next(new ApiError(401, 'UNAUTHENTICATED', 'Authentication required'));
+  }
+
+  if (req.user.role === 'admin') {
+    return next(
+      new ApiError(
+        403,
+        'ADMIN_NOT_ELIGIBLE',
+        'Administrators are administrative-only and not eligible for workforce attendance actions'
+      )
+    );
+  }
+
+  next();
+};
+

@@ -34,6 +34,8 @@ lerna-debug.log*
 *.sw?
 .DS_Store
 Thumbs.db
+scratch/
+
 
 # TypeScript cache
 *.tsbuildinfo

@@ -30,7 +30,16 @@ export const attendanceQuerySchema = z
     page: z.coerce.number().int().min(1).default(1),
     limit: z.coerce.number().int().min(1).max(100).default(20),
   })
-  .strict();
+  .strict()
+  .superRefine((val, ctx) => {
+    if (val.from && val.to && val.from > val.to) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'from date cannot be after to date',
+        path: ['from'],
+      });
+    }
+  });
 
 export const attendanceIdParamSchema = z
   .object({
@@ -48,7 +57,16 @@ export const selfieParamSchema = z
 export const reviewVerificationSchema = z
   .object({
     status: z.enum([VERIFICATION_STATUS.VALID, VERIFICATION_STATUS.INVALID]),
-    remarks: z.string().trim().max(500).optional().nullable(),
+    remarks: z
+      .string()
+      .max(500, 'Remarks cannot exceed 500 characters')
+      .refine(
+        (val) => val === undefined || val === null || val.trim().length > 0,
+        'Remarks cannot be whitespace-only'
+      )
+      .transform((val) => (val ? val.trim() : val))
+      .optional()
+      .nullable(),
   })
   .strict()
   .superRefine((val, ctx) => {
@@ -81,7 +99,16 @@ export const requestOvertimeSchema = z
 export const reviewOvertimeSchema = z
   .object({
     decision: z.enum(['approved', 'rejected']),
-    remarks: z.string().trim().max(500).optional().nullable(),
+    remarks: z
+      .string()
+      .max(500, 'Remarks cannot exceed 500 characters')
+      .refine(
+        (val) => val === undefined || val === null || val.trim().length > 0,
+        'Remarks cannot be whitespace-only'
+      )
+      .transform((val) => (val ? val.trim() : val))
+      .optional()
+      .nullable(),
   })
   .strict()
   .superRefine((val, ctx) => {

@@ -12,7 +12,16 @@ export const dailyReportQuerySchema = z
     page: z.coerce.number().int().min(1).default(1),
     limit: z.coerce.number().int().min(1).max(100).default(20),
   })
-  .strict();
+  .strict()
+  .superRefine((val, ctx) => {
+    if (val.from && val.to && val.from > val.to) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'from date cannot be after to date',
+        path: ['from'],
+      });
+    }
+  });
 
 export const exportReportQuerySchema = z
   .object({
@@ -22,4 +31,13 @@ export const exportReportQuerySchema = z
     userId: z.string().regex(objectIdRegex, 'Invalid userId format').optional(),
     format: z.enum(['xlsx', 'pdf']),
   })
-  .strict();
+  .strict()
+  .superRefine((val, ctx) => {
+    if (val.from && val.to && val.from > val.to) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'from date cannot be after to date',
+        path: ['from'],
+      });
+    }
+  });

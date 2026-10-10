@@ -118,7 +118,7 @@ const GeofenceSettingsForm: React.FC<GeofenceSettingsFormProps> = ({
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* Geofence Status Card */}
-      <Card className="border-border/70 shadow-sm">
+      <Card className="border-border/70 rounded-2xl shadow-xs">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
@@ -163,14 +163,14 @@ const GeofenceSettingsForm: React.FC<GeofenceSettingsFormProps> = ({
               id="geofence-toggle"
               checked={enabled}
               onChange={(e) => setEnabled(e.target.checked)}
-              className="w-5 h-5 rounded text-primary focus:ring-primary/20 cursor-pointer"
+              className="w-5 h-5 rounded-md text-primary focus:ring-primary/20 cursor-pointer accent-primary"
             />
           </div>
         </CardContent>
       </Card>
 
       {/* Office Location Coordinates Card */}
-      <Card className="border-border/70 shadow-sm">
+      <Card className="border-border/70 rounded-2xl shadow-xs">
         <CardHeader>
           <CardTitle className="text-base font-bold flex items-center gap-2">
             <MapPin className="w-4 h-4 text-primary" /> Office Location Coordinates
@@ -191,7 +191,7 @@ const GeofenceSettingsForm: React.FC<GeofenceSettingsFormProps> = ({
                 step="any"
                 value={officeLatitude}
                 onChange={(e) => setOfficeLatitude(parseFloat(e.target.value) || 0)}
-                className="mt-1"
+                className="mt-1 rounded-xl text-xs"
                 required
               />
             </div>
@@ -206,7 +206,7 @@ const GeofenceSettingsForm: React.FC<GeofenceSettingsFormProps> = ({
                 step="any"
                 value={officeLongitude}
                 onChange={(e) => setOfficeLongitude(parseFloat(e.target.value) || 0)}
-                className="mt-1"
+                className="mt-1 rounded-xl text-xs"
                 required
               />
             </div>
@@ -219,7 +219,7 @@ const GeofenceSettingsForm: React.FC<GeofenceSettingsFormProps> = ({
               size="sm"
               onClick={handleUseCurrentLocation}
               disabled={isLocating}
-              className="gap-1.5 text-xs"
+              className="gap-1.5 text-xs rounded-xl"
             >
               <LocateFixed className="w-3.5 h-3.5 text-primary" />
               {isLocating ? 'Acquiring GPS...' : 'Use My Current Location'}
@@ -229,7 +229,7 @@ const GeofenceSettingsForm: React.FC<GeofenceSettingsFormProps> = ({
               href={mapsUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 text-xs text-primary font-semibold hover:underline border border-primary/20 px-3 py-1.5 rounded-lg bg-primary/5 hover:bg-primary/10 transition-colors"
+              className="inline-flex items-center gap-1.5 text-xs text-primary font-semibold hover:underline border border-primary/20 px-3 py-1.5 rounded-xl bg-primary/5 hover:bg-primary/10 transition-colors"
             >
               Preview Office on Google Maps <ExternalLink className="w-3 h-3" />
             </a>
@@ -238,7 +238,7 @@ const GeofenceSettingsForm: React.FC<GeofenceSettingsFormProps> = ({
       </Card>
 
       {/* Boundary & Tolerance Limits Card */}
-      <Card className="border-border/70 shadow-sm">
+      <Card className="border-border/70 rounded-2xl shadow-xs">
         <CardHeader>
           <CardTitle className="text-base font-bold">
             Radius & Accuracy Thresholds
@@ -259,7 +259,7 @@ const GeofenceSettingsForm: React.FC<GeofenceSettingsFormProps> = ({
               max={50000}
               value={radiusMeters}
               onChange={(e) => setRadiusMeters(parseInt(e.target.value, 10) || 0)}
-              className="mt-1"
+              className="mt-1 rounded-xl text-xs"
               required
             />
             <p className="text-[11px] text-muted-foreground mt-1">
@@ -278,7 +278,7 @@ const GeofenceSettingsForm: React.FC<GeofenceSettingsFormProps> = ({
               max={1000}
               value={maxAccuracyMeters}
               onChange={(e) => setMaxAccuracyMeters(parseInt(e.target.value, 10) || 0)}
-              className="mt-1"
+              className="mt-1 rounded-xl text-xs"
               required
             />
             <p className="text-[11px] text-muted-foreground mt-1">
@@ -293,7 +293,7 @@ const GeofenceSettingsForm: React.FC<GeofenceSettingsFormProps> = ({
         <Button
           type="submit"
           disabled={isUpdating}
-          className="gap-2 px-6"
+          className="gap-2 px-6 h-10 rounded-xl font-bold shadow-xs"
         >
           <Save className="w-4 h-4" />
           {isUpdating ? 'Saving...' : 'Save Geofence Configuration'}

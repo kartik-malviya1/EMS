@@ -13,13 +13,13 @@ import {
   Camera,
   ChevronDown,
   Calendar,
-  Sparkles,
+  Bell as BellIcon,
 } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '../../app/hooks';
 import { useLogoutMutation } from '../../features/auth/authApi';
 import { logoutUser } from '../../features/auth/authSlice';
+import { apiSlice, setIntentionalLogout } from '../../features/api/apiSlice';
 import { Button } from '../ui/button';
-import { ThemeToggle } from './ThemeToggle';
 import { NotificationBell } from '../notifications/NotificationBell';
 import { useRealtime } from '../../features/realtime/useRealtime';
 import {
@@ -34,12 +34,15 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '../u
 import { cn } from '../../lib/utils';
 import type { Role } from '../../types/models';
 
+import { ThemeSegmentedSwitch } from './ThemeSegmentedSwitch';
+
 interface NavSection {
   title?: string;
   items: Array<{
     label: string;
     href: string;
     icon: React.ComponentType<{ className?: string }>;
+    badge?: number | string;
   }>;
 }
 
@@ -47,22 +50,26 @@ const getNavSections = (role?: Role): NavSection[] => {
   if (role === 'admin') {
     return [
       {
-        title: 'Administration',
+        title: 'MAIN',
         items: [
-          { label: 'Admin Overview', href: '/admin', icon: LayoutDashboard },
-          { label: 'User Directory', href: '/admin/users', icon: Users },
+          { label: 'Dashboard', href: '/admin', icon: LayoutDashboard },
           { label: 'System Attendance', href: '/admin/attendance', icon: Calendar },
-          { label: 'Verification Audits', href: '/admin/review', icon: ShieldCheck },
-          { label: 'Overtime Approvals', href: '/admin/overtime', icon: Clock },
-          { label: 'Reports & Export', href: '/admin/reports', icon: FileText },
-          { label: 'Geofence Settings', href: '/admin/settings', icon: Settings },
         ],
       },
       {
-        title: 'Personal Shift',
+        title: 'EMPLOYEE & AUDITS',
         items: [
-          { label: "Today's Punch", href: '/employee', icon: Camera },
-          { label: 'My History', href: '/employee/history', icon: History },
+          { label: 'User Directory', href: '/admin/users', icon: Users },
+          { label: 'Verification Audits', href: '/admin/review', icon: ShieldCheck },
+          { label: 'Overtime Approvals', href: '/admin/overtime', icon: Clock },
+          { label: 'Reports & Export', href: '/admin/reports', icon: FileText },
+        ],
+      },
+      {
+        title: 'SYSTEM & SETTINGS',
+        items: [
+          { label: 'Geofence Settings', href: '/admin/settings', icon: Settings },
+          { label: 'Notifications', href: '/notifications', icon: BellIcon },
         ],
       },
     ];
@@ -71,20 +78,26 @@ const getNavSections = (role?: Role): NavSection[] => {
   if (role === 'manager') {
     return [
       {
-        title: 'Team Management',
+        title: 'MAIN',
         items: [
           { label: 'Team Overview', href: '/manager', icon: LayoutDashboard },
           { label: 'Team Attendance', href: '/manager/attendance', icon: Calendar },
+        ],
+      },
+      {
+        title: 'MANAGEMENT',
+        items: [
           { label: 'Verification Queue', href: '/manager/review', icon: ShieldCheck },
           { label: 'Overtime Queue', href: '/manager/overtime', icon: Clock },
           { label: 'Team Reports', href: '/manager/reports', icon: FileText },
         ],
       },
       {
-        title: 'Personal Shift',
+        title: 'MY ATTENDANCE',
         items: [
           { label: "Today's Punch", href: '/employee', icon: Camera },
           { label: 'My History', href: '/employee/history', icon: History },
+          { label: 'Notifications', href: '/notifications', icon: BellIcon },
         ],
       },
     ];
@@ -93,10 +106,16 @@ const getNavSections = (role?: Role): NavSection[] => {
   // Employee
   return [
     {
-      title: 'Personal Shift',
+      title: 'MAIN',
       items: [
         { label: "Today's Punch", href: '/employee', icon: Clock },
         { label: 'My History', href: '/employee/history', icon: History },
+      ],
+    },
+    {
+      title: 'SYSTEM',
+      items: [
+        { label: 'Notifications', href: '/notifications', icon: BellIcon },
       ],
     },
   ];
@@ -107,11 +126,11 @@ const NavSectionGroup: React.FC<{
   pathname: string;
   onClick?: () => void;
 }> = ({ sections, pathname, onClick }) => (
-  <nav className="flex flex-col gap-5 px-3 py-4">
+  <nav className="flex flex-col gap-4 px-3 py-3">
     {sections.map((section, sIdx) => (
       <div key={sIdx} className="space-y-1">
         {section.title && (
-          <div className="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">
+          <div className="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60">
             {section.title}
           </div>
         )}
@@ -120,7 +139,10 @@ const NavSectionGroup: React.FC<{
             const Icon = item.icon;
             const isActive =
               pathname === item.href ||
-              (item.href !== '/employee' && pathname.startsWith(item.href));
+              (item.href !== '/employee' &&
+                item.href !== '/admin' &&
+                item.href !== '/manager' &&
+                pathname.startsWith(item.href));
 
             return (
               <Link
@@ -128,9 +150,9 @@ const NavSectionGroup: React.FC<{
                 to={item.href}
                 onClick={onClick}
                 className={cn(
-                  'group flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-200',
+                  'group relative flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-200',
                   isActive
-                    ? 'bg-primary text-primary-foreground shadow-sm shadow-primary/20'
+                    ? 'bg-primary/10 text-primary font-bold shadow-xs'
                     : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
                 )}
               >
@@ -139,12 +161,17 @@ const NavSectionGroup: React.FC<{
                     className={cn(
                       'h-4 w-4 shrink-0 transition-colors',
                       isActive
-                        ? 'text-primary-foreground'
-                        : 'text-muted-foreground group-hover:text-primary'
+                        ? 'text-primary'
+                        : 'text-muted-foreground group-hover:text-foreground'
                     )}
                   />
                   <span>{item.label}</span>
                 </div>
+
+                {/* Active indicator bar */}
+                {isActive && (
+                  <span className="h-4 w-1 rounded-full bg-primary shrink-0" />
+                )}
               </Link>
             );
           })}
@@ -168,29 +195,57 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({
   const navSections = getNavSections(user?.role);
 
   const handleLogout = async () => {
+    setIntentionalLogout(true);
     try {
       await logoutMutation().unwrap();
     } catch {
       // Ignored
     } finally {
+      dispatch(apiSlice.util.resetApiState());
       dispatch(logoutUser());
       navigate('/login');
+      setTimeout(() => setIntentionalLogout(false), 500);
     }
   };
 
-  const portalBadge =
+  const getBreadcrumbs = (path: string): string[] => {
+    if (path.startsWith('/admin')) {
+      if (path === '/admin') return ['AMS', 'HR Management', 'Admin Dashboard'];
+      if (path.startsWith('/admin/attendance')) return ['AMS', 'HR Management', 'Employee', 'Attendance'];
+      if (path.startsWith('/admin/users')) return ['AMS', 'HR Management', 'Directory', 'Users'];
+      if (path.startsWith('/admin/review')) return ['AMS', 'HR Management', 'Audits', 'Verification Review'];
+      if (path.startsWith('/admin/overtime')) return ['AMS', 'HR Management', 'Approvals', 'Overtime Requests'];
+      if (path.startsWith('/admin/reports')) return ['AMS', 'HR Management', 'Analytics', 'Daily Reports'];
+      if (path.startsWith('/admin/settings')) return ['AMS', 'Settings', 'Geofence Perimeter'];
+    }
+    if (path.startsWith('/manager')) {
+      if (path === '/manager') return ['AMS', 'Manager', 'Team Overview'];
+      if (path.startsWith('/manager/attendance')) return ['AMS', 'Manager', 'Team Attendance'];
+      if (path.startsWith('/manager/review')) return ['AMS', 'Manager', 'Verification Queue'];
+      if (path.startsWith('/manager/overtime')) return ['AMS', 'Manager', 'Overtime Queue'];
+      if (path.startsWith('/manager/reports')) return ['AMS', 'Manager', 'Team Reports'];
+    }
+    if (path === '/employee') return ['AMS', 'Employee', "Today's Punch"];
+    if (path === '/employee/history') return ['AMS', 'Employee', 'Attendance History'];
+    if (path === '/notifications') return ['AMS', 'Notifications'];
+    return ['AMS', 'Portal'];
+  };
+
+  const breadcrumbs = getBreadcrumbs(location.pathname);
+
+  const roleSubtitle =
     user?.role === 'admin'
-      ? 'Admin Portal'
+      ? 'HR Admin'
       : user?.role === 'manager'
-        ? 'Employee Portal (Manager)'
-        : 'Employee Portal';
+        ? 'Team Manager'
+        : 'Staff Employee';
 
   return (
-    <div className="min-h-screen flex flex-col bg-background text-foreground">
+    <div className="h-screen h-[100dvh] flex flex-col bg-background text-foreground overflow-hidden">
       {/* Top Header */}
-      <header className="sticky top-0 z-40 w-full border-b border-border/70 bg-background/90 backdrop-blur-md">
-        <div className="flex h-16 items-center justify-between px-4 sm:px-6">
-          <div className="flex items-center gap-3">
+      <header className="shrink-0 w-full border-b border-border/70 bg-card/90 backdrop-blur-md z-30">
+        <div className="flex h-14 sm:h-16 items-center justify-between px-4 sm:px-6">
+          <div className="flex items-center gap-4">
             {/* Mobile Sheet Trigger */}
             <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
               <SheetTrigger asChild>
@@ -203,50 +258,66 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({
                   <Menu className="h-5 w-5" />
                 </Button>
               </SheetTrigger>
-              <SheetContent side="left" className="p-0 w-72">
-                <SheetHeader className="p-4 border-b">
-                  <SheetTitle className="flex items-center gap-2.5">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary text-primary-foreground font-bold">
-                      E
-                    </div>
-                    <span>EMS Portal</span>
-                  </SheetTitle>
-                </SheetHeader>
-                <NavSectionGroup
-                  sections={navSections}
-                  pathname={location.pathname}
-                  onClick={() => setMobileOpen(false)}
-                />
+              <SheetContent side="left" className="p-0 w-72 flex flex-col justify-between">
+                <div className="flex flex-col min-h-0 flex-1">
+                  <SheetHeader className="p-4 border-b shrink-0">
+                    <SheetTitle className="flex items-center gap-2.5">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary text-primary-foreground font-extrabold">
+                        A
+                      </div>
+                      <span className="font-extrabold tracking-tight">Attendance System</span>
+                    </SheetTitle>
+                  </SheetHeader>
+                  <div className="flex-1 overflow-y-auto min-h-0">
+                    <NavSectionGroup
+                      sections={navSections}
+                      pathname={location.pathname}
+                      onClick={() => setMobileOpen(false)}
+                    />
+                  </div>
+                </div>
+                <div className="p-4 border-t border-border/70 bg-card/60 shrink-0">
+                  <ThemeSegmentedSwitch />
+                </div>
               </SheetContent>
             </Sheet>
 
-            {/* Brand Logo */}
+            {/* Brand Logo on mobile / small screens */}
             <Link
               to="/"
-              className="flex items-center gap-2.5 font-bold tracking-tight text-base text-foreground hover:opacity-90 transition-opacity"
+              className="flex md:hidden items-center gap-2 font-bold tracking-tight text-sm text-foreground hover:opacity-90 transition-opacity"
             >
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-primary to-indigo-600 text-primary-foreground font-extrabold shadow-sm">
-                E
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-tr from-primary to-indigo-600 text-primary-foreground font-extrabold shadow-xs">
+                A
               </div>
-              <div className="hidden sm:block">
-                <span className="font-extrabold tracking-tight">EMS</span>
-                <span className="text-primary font-bold ml-1">Portal</span>
-              </div>
+              <span className="font-extrabold tracking-tight">EMS</span>
             </Link>
 
-            {/* Portal Badge */}
-            <div className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-primary/10 text-primary border border-primary/20">
-              <Sparkles className="w-3 h-3" />
-              <span>{portalBadge}</span>
+            {/* Breadcrumbs on Desktop */}
+            <div className="hidden md:flex items-center gap-1.5 text-xs text-muted-foreground/80 font-medium">
+              {breadcrumbs.map((crumb, idx) => (
+                <React.Fragment key={idx}>
+                  {idx > 0 && <span className="text-muted-foreground/40 text-[10px]">●</span>}
+                  <span
+                    className={cn(
+                      idx === breadcrumbs.length - 1
+                        ? 'font-bold text-foreground'
+                        : 'hover:text-foreground/80'
+                    )}
+                  >
+                    {crumb}
+                  </span>
+                </React.Fragment>
+              ))}
             </div>
           </div>
 
           {/* Right Header Navigation */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             {/* Live Socket Status Dot */}
             <div
               className={cn(
-                'hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors',
+                'hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors',
                 socketStatus === 'connected'
                   ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
                   : socketStatus === 'connecting'
@@ -288,26 +359,29 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({
             {/* Notifications Bell */}
             <NotificationBell />
 
-            <ThemeToggle />
-
-            {/* User Profile Dropdown */}
+            {/* User Profile */}
             {user && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
-                    className="flex items-center gap-2 pl-2 pr-3 py-1 h-9 rounded-full border border-border/60 hover:bg-muted/60"
+                    className="flex items-center gap-2 pl-2 pr-3 py-1 h-9 rounded-full border border-border/70 hover:bg-muted/60 transition-all cursor-pointer"
                   >
-                    <div className="h-7 w-7 rounded-full bg-primary/20 text-primary font-bold flex items-center justify-center text-xs uppercase">
+                    <div className="h-7 w-7 rounded-full bg-primary/15 text-primary font-bold flex items-center justify-center text-xs uppercase ring-2 ring-primary/20">
                       {user.name?.charAt(0) || 'U'}
                     </div>
-                    <span className="hidden md:inline-block text-xs font-semibold max-w-[120px] truncate">
-                      {user.name}
-                    </span>
-                    <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                    <div className="hidden sm:flex flex-col text-left leading-none">
+                      <span className="text-xs font-bold text-foreground max-w-[120px] truncate">
+                        {user.name}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground font-medium">
+                        {roleSubtitle}
+                      </span>
+                    </div>
+                    <ChevronDown className="h-3 w-3 text-muted-foreground ml-0.5" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56 p-1 rounded-2xl">
+                <DropdownMenuContent align="end" className="w-56 p-1 rounded-2xl shadow-xl">
                   <DropdownMenuLabel className="font-normal p-3">
                     <div className="flex flex-col space-y-1">
                       <p className="text-xs font-bold leading-none">{user.name}</p>
@@ -334,19 +408,48 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({
         </div>
       </header>
 
-      {/* Main Container */}
-      <div className="flex-1 flex">
-        {/* Desktop Sidebar with tanX inspired styling */}
-        <aside className="hidden md:flex flex-col w-64 border-r border-border/70 bg-card/50 backdrop-blur-sm shrink-0">
-          <NavSectionGroup
-            sections={navSections}
-            pathname={location.pathname}
-          />
+      {/* Main Layout Container with Fixed Boundaries */}
+      <div className="flex-1 flex min-h-0 overflow-hidden">
+        {/* Desktop Sidebar */}
+        <aside className="hidden md:flex flex-col w-64 border-r border-border/70 bg-card/60 backdrop-blur-sm shrink-0 justify-between h-full overflow-hidden">
+          <div className="flex flex-col min-h-0 flex-1">
+            {/* Sidebar Brand Header */}
+            <div className="h-14 sm:h-16 shrink-0 flex items-center justify-between px-5 border-b border-border/50">
+              <Link to="/" className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-tr from-primary to-indigo-600 text-primary-foreground font-black shadow-xs">
+                  A
+                </div>
+                <div className="flex flex-col leading-none">
+                  <span className="font-extrabold text-sm tracking-tight text-foreground">
+                    Attendance System
+                  </span>
+                  <span className="text-[10px] text-primary font-bold tracking-wider uppercase">
+                    Workforce EMS
+                  </span>
+                </div>
+              </Link>
+            </div>
+
+            {/* Navigation links with smooth scroll container */}
+            <div className="flex-1 overflow-y-auto min-h-0 py-2">
+              <NavSectionGroup
+                sections={navSections}
+                pathname={location.pathname}
+              />
+            </div>
+          </div>
+
+          {/* Sidebar Footer with Segmented Light/Dark Switch */}
+          <div className="p-3 border-t border-border/60 bg-card/50 shrink-0">
+            <ThemeSegmentedSwitch />
+          </div>
         </aside>
 
-        {/* Page Content */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
-          {children}
+        {/* Dedicated Scrollable Page Content Container */}
+        <main className="flex-1 min-w-0 h-full overflow-y-auto overflow-x-hidden p-4 sm:p-6 lg:p-8">
+          <div className="max-w-7xl mx-auto w-full space-y-6">
+            {children}
+          </div>
         </main>
       </div>
     </div>

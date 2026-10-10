@@ -90,6 +90,14 @@ export const autoCloseOldRecords = async (todayWorkDate = getWorkDate()) => {
  * Punch-In
  */
 export const punchIn = async ({ user, file, latitude, longitude, accuracy }) => {
+  if (user.role === ROLES.ADMIN) {
+    throw new ApiError(
+      403,
+      'ADMIN_NOT_ELIGIBLE',
+      'Administrators are administrative-only and not eligible for workforce attendance actions'
+    );
+  }
+
   const now = new Date();
   const todayWorkDate = getWorkDate(now);
 
@@ -125,7 +133,7 @@ export const punchIn = async ({ user, file, latitude, longitude, accuracy }) => 
       kind: 'punch-in',
     });
   } catch (uploadErr) {
-    throw new ApiError(500, 'STORAGE_ERROR', 'Failed to store selfie', [uploadErr.message]);
+    throw new ApiError(502, 'STORAGE_UNAVAILABLE', 'Failed to store selfie', [uploadErr.message]);
   }
 
   // 5. Create attendance record
@@ -178,6 +186,14 @@ export const punchIn = async ({ user, file, latitude, longitude, accuracy }) => 
  * Punch-Out
  */
 export const punchOut = async ({ user, file, latitude, longitude, accuracy }) => {
+  if (user.role === ROLES.ADMIN) {
+    throw new ApiError(
+      403,
+      'ADMIN_NOT_ELIGIBLE',
+      'Administrators are administrative-only and not eligible for workforce attendance actions'
+    );
+  }
+
   const now = new Date();
 
   // 1. Locate the currently open attendance record
@@ -219,7 +235,7 @@ export const punchOut = async ({ user, file, latitude, longitude, accuracy }) =>
       kind: 'punch-out',
     });
   } catch (uploadErr) {
-    throw new ApiError(500, 'STORAGE_ERROR', 'Failed to store punch out selfie', [uploadErr.message]);
+    throw new ApiError(502, 'STORAGE_UNAVAILABLE', 'Failed to store punch out selfie', [uploadErr.message]);
   }
 
   // 5. Calculate worked minutes & status
@@ -227,53 +243,69 @@ export const punchOut = async ({ user, file, latitude, longitude, accuracy }) =>
   const workingStatus = calculateWorkingStatus(workedMinutes);
 
   // 6. Atomic findOneAndUpdate
-  const updated = await Attendance.findOneAndUpdate(
-    {
-      _id: openRecord._id,
-      workingStatus: WORKING_STATUS.IN_PROGRESS, // Guarantees only 1 concurrent call succeeds
-    },
-    {
-      $set: {
-        punchOut: {
-          at: now,
-          selfie: {
-            publicId: uploadResult.publicId,
-            mimeType: uploadResult.mimeType,
-            bytes: uploadResult.bytes,
-          },
-          location: {
-            latitude,
-            longitude,
-            accuracy,
-            distanceFromOfficeMeters: geofenceResult.distanceFromOfficeMeters,
-            withinGeofence: geofenceResult.withinGeofence,
-          },
-        },
-        workedMinutes,
-        workingStatus,
-        closedBy: CLOSED_BY.EMPLOYEE,
+  try {
+    const updated = await Attendance.findOneAndUpdate(
+      {
+        _id: openRecord._id,
+        workingStatus: WORKING_STATUS.IN_PROGRESS, // Guarantees only 1 concurrent call succeeds
       },
-    },
-    { returnDocument: 'after' }
-  );
+      {
+        $set: {
+          punchOut: {
+            at: now,
+            selfie: {
+              publicId: uploadResult.publicId,
+              mimeType: uploadResult.mimeType,
+              bytes: uploadResult.bytes,
+            },
+            location: {
+              latitude,
+              longitude,
+              accuracy,
+              distanceFromOfficeMeters: geofenceResult.distanceFromOfficeMeters,
+              withinGeofence: geofenceResult.withinGeofence,
+            },
+          },
+          workedMinutes,
+          workingStatus,
+          closedBy: CLOSED_BY.EMPLOYEE,
+        },
+      },
+      { returnDocument: 'after' }
+    );
 
-  if (!updated) {
-    // Concurrent request closed it in the meantime
+    if (!updated) {
+      // Concurrent request closed it in the meantime
+      if (uploadResult?.publicId) {
+        await deleteSelfie(uploadResult.publicId);
+      }
+      throw new ApiError(409, 'NO_OPEN_ATTENDANCE', 'No open attendance record found to punch out');
+    }
+
+    emitAttendanceUpdated(updated._id, user._id, user.managerId || null);
+
+    return updated;
+  } catch (dbErr) {
     if (uploadResult?.publicId) {
       await deleteSelfie(uploadResult.publicId);
     }
-    throw new ApiError(409, 'NO_OPEN_ATTENDANCE', 'No open attendance record found to punch out');
+    throw dbErr;
   }
-
-  emitAttendanceUpdated(updated._id, user._id, user.managerId || null);
-
-  return updated;
 };
 
 /**
  * Today's attendance for the user
  */
-export const getTodayAttendance = async (userId) => {
+export const getTodayAttendance = async (userOrId) => {
+  if (userOrId?.role === ROLES.ADMIN) {
+    throw new ApiError(
+      403,
+      'ADMIN_NOT_ELIGIBLE',
+      'Administrators are administrative-only and not eligible for workforce attendance actions'
+    );
+  }
+
+  const userId = userOrId?._id || userOrId;
   const todayWorkDate = getWorkDate();
   const record = await Attendance.findOne({
     employeeId: userId,
@@ -461,7 +493,7 @@ export const reviewVerification = async ({ user, attendanceId, status, remarks }
 
   await attendance.save();
 
-  // 4. Trigger notification stub
+  // 4. Trigger notification
   await notifyVerificationReviewed({ attendance, reviewer: user, status });
 
   return Attendance.findById(attendance._id)
@@ -474,6 +506,14 @@ export const reviewVerification = async ({ user, attendanceId, status, remarks }
  * Request Overtime (Owner only)
  */
 export const requestOvertime = async ({ user, attendanceId, requestedMinutes, reason }) => {
+  if (user.role === ROLES.ADMIN) {
+    throw new ApiError(
+      403,
+      'ADMIN_NOT_ELIGIBLE',
+      'Administrators are administrative-only and not eligible for workforce attendance actions'
+    );
+  }
+
   const attendance = await Attendance.findById(attendanceId);
   if (!attendance) {
     throw new ApiError(404, 'NOT_FOUND', 'Attendance record not found');
@@ -529,26 +569,45 @@ export const requestOvertime = async ({ user, attendanceId, requestedMinutes, re
     );
   }
 
-  // 3. Update overtime request
-  attendance.overtime.status = OVERTIME_STATUS.PENDING;
-  attendance.overtime.requestedMinutes = requestedMinutes;
-  attendance.overtime.reason = reason;
-  attendance.overtime.requestedAt = new Date();
-  attendance.overtime.reviewedBy = null;
-  attendance.overtime.reviewedAt = null;
-  attendance.overtime.remarks = null;
+  // 3. Atomic findOneAndUpdate to prevent race condition on double submission
+  const updated = await Attendance.findOneAndUpdate(
+    {
+      _id: attendance._id,
+      'overtime.status': {
+        $in: [OVERTIME_STATUS.NOT_REQUESTED, OVERTIME_STATUS.REJECTED],
+      },
+    },
+    {
+      $set: {
+        'overtime.status': OVERTIME_STATUS.PENDING,
+        'overtime.requestedMinutes': requestedMinutes,
+        'overtime.reason': reason,
+        'overtime.requestedAt': new Date(),
+        'overtime.reviewedBy': null,
+        'overtime.reviewedAt': null,
+        'overtime.remarks': null,
+      },
+    },
+    { returnDocument: 'after' }
+  );
 
-  await attendance.save();
+  if (!updated) {
+    throw new ApiError(
+      409,
+      'OVERTIME_NOT_REQUESTABLE',
+      'Overtime is already pending or approved'
+    );
+  }
 
-  // 4. Trigger notification stub
+  // 4. Trigger notification
   await notifyOvertimeRequested({
-    attendance,
+    attendance: updated,
     employee: user,
     requestedMinutes,
     reason,
   });
 
-  return Attendance.findById(attendance._id)
+  return Attendance.findById(updated._id)
     .populate('employeeId', 'name email role managerId')
     .populate('verification.reviewedBy', 'name email')
     .populate('overtime.reviewedBy', 'name email');
@@ -587,28 +646,46 @@ export const reviewOvertime = async ({ user, attendanceId, decision, remarks }) 
   const targetStatus =
     decision === 'approved' ? OVERTIME_STATUS.APPROVED : OVERTIME_STATUS.REJECTED;
 
-  // 4. Append to history & update state
-  attendance.overtime.history.push({
-    status: targetStatus,
-    requestedMinutes: attendance.overtime.requestedMinutes,
-    reason: attendance.overtime.reason,
-    requestedAt: attendance.overtime.requestedAt,
-    reviewedBy: user._id,
-    reviewedAt: new Date(),
-    remarks: remarks || null,
-  });
+  // 4. Atomic update to guarantee exactly one concurrent transition succeeds
+  const updated = await Attendance.findOneAndUpdate(
+    {
+      _id: attendance._id,
+      'overtime.status': OVERTIME_STATUS.PENDING,
+    },
+    {
+      $set: {
+        'overtime.status': targetStatus,
+        'overtime.reviewedBy': user._id,
+        'overtime.reviewedAt': new Date(),
+        'overtime.remarks': remarks || null,
+      },
+      $push: {
+        'overtime.history': {
+          status: targetStatus,
+          requestedMinutes: attendance.overtime?.requestedMinutes,
+          reason: attendance.overtime?.reason,
+          requestedAt: attendance.overtime?.requestedAt,
+          reviewedBy: user._id,
+          reviewedAt: new Date(),
+          remarks: remarks || null,
+        },
+      },
+    },
+    { returnDocument: 'after' }
+  );
 
-  attendance.overtime.status = targetStatus;
-  attendance.overtime.reviewedBy = user._id;
-  attendance.overtime.reviewedAt = new Date();
-  attendance.overtime.remarks = remarks || null;
+  if (!updated) {
+    throw new ApiError(
+      409,
+      'INVALID_TRANSITION',
+      'Only pending overtime requests can be reviewed'
+    );
+  }
 
-  await attendance.save();
+  // 5. Trigger notification
+  await notifyOvertimeReviewed({ attendance: updated, reviewer: user, decision });
 
-  // 5. Trigger notification stub
-  await notifyOvertimeReviewed({ attendance, reviewer: user, decision });
-
-  return Attendance.findById(attendance._id)
+  return Attendance.findById(updated._id)
     .populate('employeeId', 'name email role managerId')
     .populate('verification.reviewedBy', 'name email')
     .populate('overtime.reviewedBy', 'name email');

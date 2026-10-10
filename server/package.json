@@ -14,7 +14,8 @@
     "test:watch": "vitest",
     "lint": "eslint .",
     "seed:admin": "node src/scripts/seed-admin.js",
-    "seed:demo": "node src/scripts/seed-demo.js"
+    "seed:demo": "node src/scripts/seed-demo.js",
+    "db:purge-admin-attendance": "node src/scripts/purge-admin-attendance.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

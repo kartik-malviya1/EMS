@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
 import { PageHeader } from '../../components/common/PageHeader';
-import { Card, CardContent } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { Skeletons } from '../../components/common/Skeletons';
 import { EmptyState } from '../../components/common/EmptyState';
 import { ErrorState } from '../../components/common/ErrorState';
 import { AttendanceReviewDialog } from '../../components/review/AttendanceReviewDialog';
+import { EmployeeCell } from '../../components/common/EmployeeCell';
+import { AttendanceTimeline } from '../../components/common/AttendanceTimeline';
 import { useGetAllAttendanceQuery } from '../../features/attendance/attendanceApi';
 import type { Attendance, User } from '../../types/models';
-import { ShieldCheck, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ShieldCheck, ChevronLeft, ChevronRight, MapPin } from 'lucide-react';
 
 export const AdminReviewPage: React.FC = () => {
   const [page, setPage] = useState(1);
@@ -31,10 +32,19 @@ export const AdminReviewPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="System-Wide Verification Queue"
-        description="Audit closed attendance shifts across all departments and managers"
-      />
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <PageHeader
+            title="System-Wide Verification Queue"
+            description="Audit employee attendance selfies, location geofences, and working hours compliance"
+          />
+        </div>
+        {reviewableRecords.length > 0 && (
+          <span className="px-3 py-1 rounded-full text-xs font-bold bg-primary/10 text-primary border border-primary/20">
+            {reviewableRecords.length} Shifts Pending Audit
+          </span>
+        )}
+      </div>
 
       {isLoading ? (
         <Skeletons count={4} />
@@ -46,128 +56,120 @@ export const AdminReviewPage: React.FC = () => {
         />
       ) : reviewableRecords.length === 0 ? (
         <EmptyState
-          title="No pending verifications"
+          title="Verification queue is all caught up!"
           description="All closed attendance records have been verified across the organization."
         />
       ) : (
         <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {reviewableRecords.map((rec) => {
-              const emp =
-                typeof rec.employeeId === 'object' && rec.employeeId !== null
-                  ? (rec.employeeId as User)
-                  : null;
-              const recId = rec.id || rec._id;
+          <div className="border border-border/70 rounded-2xl bg-card overflow-hidden shadow-xs">
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs text-left">
+                <thead className="bg-muted/40 border-b border-border/60 text-muted-foreground uppercase tracking-wider font-bold text-[11px]">
+                  <tr>
+                    <th className="py-3.5 px-4">Employee</th>
+                    <th className="py-3.5 px-4">Work Date</th>
+                    <th className="py-3.5 px-4">Clock-in & Out</th>
+                    <th className="py-3.5 px-4">Geofence Location</th>
+                    <th className="py-3.5 px-4">Status</th>
+                    <th className="py-3.5 px-4 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/50">
+                  {reviewableRecords.map((rec) => {
+                    const emp =
+                      typeof rec.employeeId === 'object' && rec.employeeId !== null
+                        ? (rec.employeeId as User)
+                        : null;
+                    const recId = rec.id || rec._id || '';
+                    const dist = rec.punchIn?.location?.distanceFromOfficeMeters;
+                    const inGeofence = rec.punchIn?.location?.withinGeofence;
 
-              return (
-                <Card
-                  key={recId}
-                  className="border-border/70 hover:border-primary/40 hover:shadow-md transition-all duration-300 flex flex-col justify-between"
-                >
-                  <CardContent className="p-4 space-y-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <h4 className="font-bold text-sm text-foreground">
-                          {emp?.name || 'Staff Member'}
-                        </h4>
-                        <p className="text-xs text-muted-foreground">
-                          {emp?.email} •{' '}
-                          <span className="capitalize">{emp?.role}</span>
-                        </p>
-                      </div>
-                      <StatusBadge
-                        kind="working"
-                        status={rec.workingStatus}
-                        size="sm"
-                      />
-                    </div>
-
-                    <div className="rounded-xl bg-muted/30 p-2.5 text-xs space-y-1">
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Work Date:</span>
-                        <span className="font-medium text-foreground">
+                    return (
+                      <tr
+                        key={recId}
+                        className="hover:bg-muted/30 transition-colors"
+                      >
+                        <td className="py-3.5 px-4">
+                          <EmployeeCell employee={emp} />
+                        </td>
+                        <td className="py-3.5 px-4 font-semibold text-foreground whitespace-nowrap">
                           {rec.workDate}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Duration:</span>
-                        <span className="font-medium text-foreground">
-                          {rec.workedMinutes != null
-                            ? `${rec.workedMinutes} mins (${(rec.workedMinutes / 60).toFixed(2)} hrs)`
-                            : 'Incomplete'}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Punch In:</span>
-                        <span className="font-medium text-foreground">
-                          {rec.punchIn?.at
-                            ? new Date(rec.punchIn.at).toLocaleTimeString([], {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })
-                            : 'N/A'}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Punch Out:</span>
-                        <span className="font-medium text-foreground">
-                          {rec.punchOut?.at
-                            ? new Date(rec.punchOut.at).toLocaleTimeString([], {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })
-                            : 'N/A'}
-                        </span>
-                      </div>
-                    </div>
-
-                    <Button
-                      size="sm"
-                      className="w-full gap-1.5 text-xs"
-                      onClick={() => {
-                        setSelectedRecord(rec);
-                        setDialogOpen(true);
-                      }}
-                    >
-                      <ShieldCheck className="w-4 h-4" /> Audit Verification
-                    </Button>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-
-          {meta && meta.totalPages > 1 && (
-            <div className="p-3 border border-border/70 rounded-xl flex items-center justify-between text-xs text-muted-foreground bg-card">
-              <span>
-                Page {meta.page} of {meta.totalPages} ({meta.total} records)
-              </span>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-xs"
-                  disabled={meta.page <= 1}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                >
-                  <ChevronLeft className="w-3.5 h-3.5" /> Previous
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-xs"
-                  disabled={meta.page >= meta.totalPages}
-                  onClick={() => setPage((p) => p + 1)}
-                >
-                  Next <ChevronRight className="w-3.5 h-3.5" />
-                </Button>
-              </div>
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <AttendanceTimeline
+                            punchInAt={rec.punchIn?.at}
+                            punchOutAt={rec.punchOut?.at}
+                            workedMinutes={rec.workedMinutes}
+                            workingStatus={rec.workingStatus}
+                          />
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-muted/60 border border-border/60">
+                            <MapPin className="w-3 h-3 text-primary shrink-0" />
+                            <span>
+                              {dist != null ? `${Math.round(dist)}m` : '—'}
+                              {inGeofence ? ' (In Office)' : ' (Outside)'}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <StatusBadge
+                            kind="verification"
+                            status={rec.verification?.status || 'pending'}
+                            size="sm"
+                          />
+                        </td>
+                        <td className="py-3.5 px-4 text-right">
+                          <Button
+                            size="sm"
+                            className="h-8 rounded-xl text-xs font-semibold gap-1.5 shadow-sm"
+                            onClick={() => {
+                              setSelectedRecord(rec);
+                              setDialogOpen(true);
+                            }}
+                          >
+                            <ShieldCheck className="w-3.5 h-3.5" /> Audit & Verify
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
-          )}
+
+            {meta && meta.totalPages > 1 && (
+              <div className="p-3 border-t border-border/70 flex items-center justify-between text-xs text-muted-foreground bg-muted/20">
+                <span>
+                  Showing Page {meta.page} of {meta.totalPages} ({meta.total} records total)
+                </span>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs rounded-lg"
+                    disabled={meta.page <= 1}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" /> Previous
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs rounded-lg"
+                    disabled={meta.page >= meta.totalPages}
+                    onClick={() => setPage((p) => p + 1)}
+                  >
+                    Next <ChevronRight className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
-      {/* Verification Review Dialog */}
+      {/* Review Dialog */}
       <AttendanceReviewDialog
         attendance={selectedRecord}
         open={dialogOpen}

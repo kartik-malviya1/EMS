@@ -1,5 +1,6 @@
 import { User } from '../models/user.model.js';
-import { ROLES } from '../config/constants.js';
+import { Attendance } from '../models/attendance.model.js';
+import { ROLES, WORKING_STATUS } from '../config/constants.js';
 import { ApiError } from '../utils/ApiError.js';
 
 export const listUsers = async ({ role, search, isActive, managerId, page = 1, limit = 20 }) => {
@@ -128,7 +129,25 @@ export const updateUser = async (adminUser, targetUserId, updateData) => {
     }
   }
 
-  // 5. Setting role to manager/admin forces managerId = null
+  // 5. Promoting someone to admin or deactivating them with an in_progress shift -> 409 OPEN_SHIFT
+  if (
+    (newRole === ROLES.ADMIN && targetUser.role !== ROLES.ADMIN) ||
+    (newIsActive === false && targetUser.isActive === true)
+  ) {
+    const openShift = await Attendance.findOne({
+      employeeId: targetUserId,
+      workingStatus: WORKING_STATUS.IN_PROGRESS,
+    });
+    if (openShift) {
+      throw new ApiError(
+        409,
+        'OPEN_SHIFT',
+        'Cannot promote to admin or deactivate a user with an active in-progress shift'
+      );
+    }
+  }
+
+  // 6. Setting role to manager/admin forces managerId = null
   if (newRole === ROLES.MANAGER || newRole === ROLES.ADMIN) {
     updateData.managerId = null;
   }

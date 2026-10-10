@@ -54,7 +54,7 @@ export function App() {
             <Route
               path="/employee"
               element={
-                <ProtectedRoute allowedRoles={['employee', 'manager', 'admin']}>
+                <ProtectedRoute allowedRoles={['employee', 'manager']}>
                   <EmployeeDashboardPage />
                 </ProtectedRoute>
               }
@@ -62,7 +62,7 @@ export function App() {
             <Route
               path="/employee/history"
               element={
-                <ProtectedRoute allowedRoles={['employee', 'manager', 'admin']}>
+                <ProtectedRoute allowedRoles={['employee', 'manager']}>
                   <EmployeeHistoryPage />
                 </ProtectedRoute>
               }
@@ -72,7 +72,7 @@ export function App() {
             <Route
               path="/manager"
               element={
-                <ProtectedRoute allowedRoles={['manager', 'admin']}>
+                <ProtectedRoute allowedRoles={['manager']}>
                   <ManagerDashboardPage />
                 </ProtectedRoute>
               }
@@ -80,7 +80,7 @@ export function App() {
             <Route
               path="/manager/attendance"
               element={
-                <ProtectedRoute allowedRoles={['manager', 'admin']}>
+                <ProtectedRoute allowedRoles={['manager']}>
                   <ManagerTeamAttendancePage />
                 </ProtectedRoute>
               }
@@ -88,7 +88,7 @@ export function App() {
             <Route
               path="/manager/review"
               element={
-                <ProtectedRoute allowedRoles={['manager', 'admin']}>
+                <ProtectedRoute allowedRoles={['manager']}>
                   <ManagerReviewPage />
                 </ProtectedRoute>
               }
@@ -96,7 +96,7 @@ export function App() {
             <Route
               path="/manager/overtime"
               element={
-                <ProtectedRoute allowedRoles={['manager', 'admin']}>
+                <ProtectedRoute allowedRoles={['manager']}>
                   <ManagerOvertimePage />
                 </ProtectedRoute>
               }
@@ -104,7 +104,7 @@ export function App() {
             <Route
               path="/manager/reports"
               element={
-                <ProtectedRoute allowedRoles={['manager', 'admin']}>
+                <ProtectedRoute allowedRoles={['manager']}>
                   <ManagerReportsPage />
                 </ProtectedRoute>
               }

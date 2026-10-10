@@ -131,4 +131,41 @@ describe('ProtectedRoute Component', () => {
     expect(screen.getByText('Employee Default Dashboard')).toBeInTheDocument();
     expect(screen.queryByText('Admin Control Panel')).not.toBeInTheDocument();
   });
+
+  it('redirects admin navigating to /employee to role default page /admin', () => {
+    const mockAdmin: User = {
+      id: 'admin-1',
+      name: 'System Admin',
+      email: 'admin@company.com',
+      role: 'admin',
+      isActive: true,
+    };
+
+    const store = createMockStore({
+      user: mockAdmin,
+      isAuthenticated: true,
+      isInitialized: true,
+    });
+
+    render(
+      <Provider store={store}>
+        <MemoryRouter initialEntries={['/employee']}>
+          <Routes>
+            <Route path="/admin" element={<div>Admin Default Dashboard</div>} />
+            <Route
+              path="/employee"
+              element={
+                <ProtectedRoute allowedRoles={['employee', 'manager']} withShell={false}>
+                  <div>Employee Dashboard</div>
+                </ProtectedRoute>
+              }
+            />
+          </Routes>
+        </MemoryRouter>
+      </Provider>
+    );
+
+    expect(screen.getByText('Admin Default Dashboard')).toBeInTheDocument();
+    expect(screen.queryByText('Employee Dashboard')).not.toBeInTheDocument();
+  });
 });
