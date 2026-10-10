@@ -12,10 +12,8 @@ if (process.env.NODE_ENV === 'production') {
   app.set('trust proxy', 1);
 }
 
-// Security headers
 app.use(helmet());
 
-// CORS configuration
 const clientOrigin = process.env.CLIENT_ORIGIN || 'http://localhost:5173';
 app.use(
   cors({
@@ -24,17 +22,14 @@ app.use(
   })
 );
 
-// Logging
 if (process.env.NODE_ENV !== 'test') {
   const morganFormat = process.env.NODE_ENV === 'production' ? 'combined' : 'dev';
   app.use(morgan(morganFormat));
 }
 
-// Request parsers
 app.use(express.json({ limit: '100kb' }));
 app.use(cookieParser());
 
-// Health check endpoint
 app.get('/api/health', (_req, res) => {
   return sendSuccess(res, {
     status: 'healthy',
@@ -43,10 +38,8 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
-// 404 handler
 app.use(notFound);
 
-// Central error handler
 app.use(errorHandler);
 
 export default app;
