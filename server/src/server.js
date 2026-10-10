@@ -1,7 +1,10 @@
+import http from 'http';
 import app from './app.js';
 import { env } from './config/env.js';
 import { connectDB, disconnectDB } from './config/db.js';
 import { logger } from './utils/logger.js';
+import { initSocketServer } from './realtime/socket.js';
+import { initCronJobs } from './jobs/index.js';
 
 const PORT = env.PORT || 5000;
 
@@ -10,7 +13,11 @@ let server;
 const startServer = async () => {
   try {
     await connectDB();
-    server = app.listen(PORT, () => {
+    const httpServer = http.createServer(app);
+    initSocketServer(httpServer);
+    initCronJobs();
+
+    server = httpServer.listen(PORT, () => {
       logger.info(`Server running on port ${PORT} in ${env.NODE_ENV || 'development'} mode`);
     });
   } catch (error) {

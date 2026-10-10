@@ -18,6 +18,7 @@ import {
   notifyOvertimeRequested,
   notifyOvertimeReviewed,
 } from './notification.service.js';
+import { emitAttendanceUpdated } from '../realtime/socket.js';
 import { ApiError } from '../utils/ApiError.js';
 import { logger } from '../utils/logger.js';
 
@@ -153,6 +154,8 @@ export const punchIn = async ({ user, file, latitude, longitude, accuracy }) => 
       closedBy: null,
     });
 
+    emitAttendanceUpdated(record._id, user._id, user.managerId || null);
+
     return record;
   } catch (dbErr) {
     // Best-effort cleanup of uploaded selfie if DB write fails
@@ -261,6 +264,8 @@ export const punchOut = async ({ user, file, latitude, longitude, accuracy }) =>
     }
     throw new ApiError(409, 'NO_OPEN_ATTENDANCE', 'No open attendance record found to punch out');
   }
+
+  emitAttendanceUpdated(updated._id, user._id, user.managerId || null);
 
   return updated;
 };

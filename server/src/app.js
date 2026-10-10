@@ -16,6 +16,7 @@ import overtimeRoutes from './routes/overtime.routes.js';
 import reportRoutes from './routes/report.routes.js';
 import dashboardRoutes from './routes/dashboard.routes.js';
 import settingsRoutes from './routes/settings.routes.js';
+import notificationRoutes from './routes/notification.routes.js';
 
 const app = express();
 
@@ -80,6 +81,9 @@ app.use('/api/dashboard', dashboardRoutes);
 
 // Settings endpoints
 app.use('/api/settings', settingsRoutes);
+
+// Notifications endpoints
+app.use('/api/notifications', notificationRoutes);
 
 // 404 handler
 app.use(notFound);

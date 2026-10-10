@@ -30,6 +30,10 @@ const notificationSchema = new mongoose.Schema(
         ref: 'Attendance',
         default: null,
       },
+      workDate: {
+        type: String,
+        default: null,
+      },
     },
     readAt: {
       type: Date,
