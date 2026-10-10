@@ -36,8 +36,12 @@ export const errorHandler = (err, req, res, _next) => {
   }
 
   // 5. Mongo duplicate key error (code 11000)
-  if (err.code === 11000) {
-    const keys = Object.keys(err.keyValue || {});
+  if (err.code === 11000 || err.errorResponse?.code === 11000 || err.message?.includes('E11000')) {
+    const keyValue = err.keyValue || err.errorResponse?.keyValue || {};
+    if (keyValue.workDate || err.message?.includes('employeeId_1_workDate_1')) {
+      return sendError(res, 'ALREADY_PUNCHED_IN', 'Already punched in for today', 409);
+    }
+    const keys = Object.keys(keyValue);
     const field = keys.length > 0 ? keys[0] : 'field';
     return sendError(res, 'CONFLICT', `Duplicate value for ${field}`, 409);
   }

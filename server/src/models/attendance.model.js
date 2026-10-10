@@ -13,14 +13,14 @@ const punchEventSchema = new mongoose.Schema(
   {
     at: { type: Date, required: true },
     selfie: {
-      publicId: { type: String, required: true },
-      mimeType: { type: String, required: true },
-      bytes: { type: Number, required: true },
+      publicId: { type: String, default: null },
+      mimeType: { type: String, default: null },
+      bytes: { type: Number, default: null },
     },
     location: {
-      latitude: { type: Number, required: true },
-      longitude: { type: Number, required: true },
-      accuracy: { type: Number, required: true },
+      latitude: { type: Number, default: null },
+      longitude: { type: Number, default: null },
+      accuracy: { type: Number, default: null },
       distanceFromOfficeMeters: { type: Number, default: null },
       withinGeofence: { type: Boolean, default: null },
     },

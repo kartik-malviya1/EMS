@@ -11,6 +11,8 @@ import { originCheck } from './middleware/originCheck.js';
 import { globalLimiter } from './middleware/rateLimiter.js';
 import authRoutes from './routes/auth.routes.js';
 import userRoutes from './routes/user.routes.js';
+import attendanceRoutes from './routes/attendance.routes.js';
+import settingsRoutes from './routes/settings.routes.js';
 
 const app = express();
 
@@ -60,6 +62,12 @@ app.use('/api/auth', authRoutes);
 
 // Users endpoints
 app.use('/api/users', userRoutes);
+
+// Attendance endpoints
+app.use('/api/attendance', attendanceRoutes);
+
+// Settings endpoints
+app.use('/api/settings', settingsRoutes);
 
 // 404 handler
 app.use(notFound);
