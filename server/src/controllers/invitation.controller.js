@@ -6,8 +6,9 @@ import {
   revokeInvitation,
   validateInvitationToken,
   acceptInvitation,
+  checkInvitationDelivery,
 } from '../services/invitation.service.js';
-import { env, parseEmailAddress } from '../config/env.js';
+import { env, getSenderInfo } from '../config/env.js';
 import { sendSuccess } from '../utils/response.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 
@@ -26,27 +27,8 @@ export const list = asyncHandler(async (req, res) => {
 });
 
 export const getEmailStatus = asyncHandler(async (_req, res) => {
-  const parsedFrom = parseEmailAddress(env.EMAIL_FROM);
-  const isConfigured = Boolean(
-    env.RESEND_API_KEY &&
-    env.RESEND_API_KEY.startsWith('re_') &&
-    env.RESEND_API_KEY !== 're_xxxxxxxxx'
-  );
-  const senderDomain = parsedFrom.domain.toLowerCase();
-  const sandboxSender = senderDomain === 'resend.dev';
-
-  return sendSuccess(
-    res,
-    {
-      mode: env.EMAIL_MODE,
-      provider: env.EMAIL_PROVIDER,
-      configured: isConfigured,
-      senderAddress: parsedFrom.address,
-      senderDomain: parsedFrom.domain,
-      sandboxSender,
-    },
-    200
-  );
+  const senderInfo = getSenderInfo(env);
+  return sendSuccess(res, senderInfo, 200);
 });
 
 export const getById = asyncHandler(async (req, res) => {
@@ -68,6 +50,13 @@ export const revoke = asyncHandler(async (req, res) => {
     adminUser: req.user,
     invitationId: req.params.id,
     req,
+  });
+  return sendSuccess(res, result, 200);
+});
+
+export const checkDelivery = asyncHandler(async (req, res) => {
+  const result = await checkInvitationDelivery({
+    invitationId: req.params.id,
   });
   return sendSuccess(res, result, 200);
 });

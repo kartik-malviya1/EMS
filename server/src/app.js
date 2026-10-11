@@ -18,6 +18,7 @@ import dashboardRoutes from './routes/dashboard.routes.js';
 import settingsRoutes from './routes/settings.routes.js';
 import notificationRoutes from './routes/notification.routes.js';
 import invitationRoutes from './routes/invitation.routes.js';
+import adminEmailRoutes from './routes/adminEmail.routes.js';
 
 const app = express();
 
@@ -93,6 +94,9 @@ app.use('/api/notifications', notificationRoutes);
 
 // Admin invitation endpoints
 app.use('/api/admin/invitations', invitationRoutes);
+
+// Admin email verification endpoints
+app.use('/api/admin/email', adminEmailRoutes);
 
 // 404 handler
 app.use(notFound);

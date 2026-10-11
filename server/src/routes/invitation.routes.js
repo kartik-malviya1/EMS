@@ -6,6 +6,7 @@ import {
   getById,
   resend,
   revoke,
+  checkDelivery,
 } from '../controllers/invitation.controller.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
@@ -44,5 +45,11 @@ router.post(
 );
 
 router.post('/:id/revoke', validate({ params: mongoIdParamSchema }), revoke);
+
+router.post(
+  '/:id/check-delivery',
+  validate({ params: mongoIdParamSchema }),
+  checkDelivery
+);
 
 export default router;

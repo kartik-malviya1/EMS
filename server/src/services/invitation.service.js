@@ -9,7 +9,7 @@ import {
   EMAIL_DELIVERY_STATUS,
 } from '../config/constants.js';
 import { ApiError } from '../utils/ApiError.js';
-import { env } from '../config/env.js';
+import { env, isEmailConfigured } from '../config/env.js';
 import {
   getEmailProvider,
   renderInvitationTemplate,
@@ -47,8 +47,10 @@ export const toSafeInvitation = (inv) => ({
   designation: inv.designation,
   status: inv.status,
   emailDeliveryStatus: inv.emailDeliveryStatus,
-  emailMode: inv.emailMode,
   emailProviderMessageId: inv.emailProviderMessageId || null,
+  emailLastEvent: inv.emailLastEvent || null,
+  emailLastEventAt: inv.emailLastEventAt || null,
+  emailAttempt: inv.emailAttempt || 0,
   emailLastError: inv.emailLastError
     ? {
         code: inv.emailLastError.code,
@@ -76,7 +78,7 @@ export const claimSend = async (invitationId) => {
       $or: [{ sendingAt: null }, { sendingAt: { $lt: staleThreshold } }],
     },
     { $set: { sendingAt: now } },
-    { new: true }
+    { returnDocument: 'after' }
   );
 };
 
@@ -97,6 +99,15 @@ export const createInvitation = async ({
   req,
   emailProvider = getEmailProvider(),
 }) => {
+  // Reject immediately if email provider is not configured BEFORE creating/modifying records
+  if (!isEmailConfigured()) {
+    throw new ApiError(
+      503,
+      'EMAIL_NOT_CONFIGURED',
+      'Email delivery is not configured. Configure RESEND_API_KEY and EMAIL_FROM to send invitations.'
+    );
+  }
+
   const normalizedEmail = data.email.toLowerCase().trim();
 
   // Role restriction: Invitations can only be for employee or manager
@@ -250,7 +261,7 @@ export const createInvitation = async ({
     const attemptNumber = 1;
     const idempotencyKey = `invitation:${invitation._id}:attempt:${attemptNumber}`;
 
-    providerResult = await emailProvider.sendInvitation({
+    providerResult = await emailProvider.send({
       to: normalizedEmail,
       subject: template.subject,
       html: template.html,
@@ -260,15 +271,13 @@ export const createInvitation = async ({
     });
 
     if (providerResult.ok) {
-      const isDev = Boolean(providerResult.devOnly);
-      invitation.emailDeliveryStatus = isDev
-        ? EMAIL_DELIVERY_STATUS.DEV_LINK
-        : EMAIL_DELIVERY_STATUS.ACCEPTED;
-      invitation.emailMode = isDev ? 'development' : 'resend';
+      invitation.emailDeliveryStatus = EMAIL_DELIVERY_STATUS.ACCEPTED;
       invitation.emailProviderMessageId = providerResult.providerMessageId || null;
       invitation.emailAttempt = attemptNumber;
       invitation.lastSentAt = new Date();
       invitation.emailLastError = null;
+      invitation.emailLastEvent = null;
+      invitation.emailLastEventAt = null;
       await invitation.save();
 
       await logAuditEvent({
@@ -284,7 +293,6 @@ export const createInvitation = async ({
       });
     } else {
       invitation.emailDeliveryStatus = EMAIL_DELIVERY_STATUS.FAILED;
-      invitation.emailMode = env.EMAIL_MODE === 'resend' ? 'resend' : 'development';
       invitation.emailAttempt = attemptNumber;
       invitation.emailLastError = {
         code: providerResult.error?.code,
@@ -309,10 +317,6 @@ export const createInvitation = async ({
     await clearSendClaim(invitation._id);
   }
 
-  const isDevMode =
-    invitation.emailDeliveryStatus === EMAIL_DELIVERY_STATUS.DEV_LINK ||
-    Boolean(providerResult?.devOnly);
-
   return {
     invitation: toSafeInvitation(invitation),
     user: {
@@ -323,7 +327,6 @@ export const createInvitation = async ({
       accountStatus: user.accountStatus,
     },
     email: {
-      mode: invitation.emailMode,
       status: invitation.emailDeliveryStatus,
       providerMessageId: invitation.emailProviderMessageId || undefined,
       error: invitation.emailLastError
@@ -333,7 +336,6 @@ export const createInvitation = async ({
           }
         : undefined,
     },
-    ...(isDevMode ? { devInvitationLink: invitationUrl, devInvitationUrl: invitationUrl } : {}),
   };
 };
 
@@ -351,32 +353,33 @@ export const listInvitations = async ({ status, role, search, page = 1, limit = 
     query.role = role;
   }
 
-  if (search) {
-    query.$or = [
-      { name: { $regex: search, $options: 'i' } },
-      { email: { $regex: search, $options: 'i' } },
-    ];
+  if (search && search.trim()) {
+    const searchRegex = new RegExp(search.trim(), 'i');
+    query.$or = [{ name: searchRegex }, { email: searchRegex }, { employeeId: searchRegex }];
   }
 
-  const skip = (page - 1) * limit;
+  const pageNum = Math.max(1, parseInt(page, 10) || 1);
+  const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
+  const skip = (pageNum - 1) * limitNum;
 
   const [invitations, total] = await Promise.all([
     Invitation.find(query)
-      .populate('invitedBy', 'name email')
-      .populate('userId', 'name email accountStatus role employeeId')
+      .populate('invitedBy', 'name email role')
+      .populate('userId', 'name email role accountStatus department designation employeeId')
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(limit),
+      .limit(limitNum)
+      .lean(),
     Invitation.countDocuments(query),
   ]);
 
   return {
     invitations: invitations.map(toSafeInvitation),
     meta: {
-      page,
-      limit,
+      page: pageNum,
+      limit: limitNum,
       total,
-      totalPages: Math.ceil(total / limit) || 1,
+      totalPages: Math.ceil(total / limitNum),
     },
   };
 };
@@ -411,6 +414,14 @@ export const resendInvitation = async ({
   req,
   emailProvider = getEmailProvider(),
 }) => {
+  if (!isEmailConfigured()) {
+    throw new ApiError(
+      503,
+      'EMAIL_NOT_CONFIGURED',
+      'Email delivery is not configured. Configure RESEND_API_KEY and EMAIL_FROM to send invitations.'
+    );
+  }
+
   const oldInvitation = await Invitation.findById(invitationId);
   if (!oldInvitation) {
     throw new ApiError(404, 'NOT_FOUND', 'Invitation not found');
@@ -483,7 +494,7 @@ export const resendInvitation = async ({
       expiresAt: newExpiresAt,
     });
 
-    const providerResult = await emailProvider.sendInvitation({
+    const providerResult = await emailProvider.send({
       to: oldInvitation.email,
       subject: template.subject,
       html: template.html,
@@ -493,12 +504,6 @@ export const resendInvitation = async ({
     });
 
     if (providerResult.ok) {
-      const isDev = Boolean(providerResult.devOnly);
-      const deliveryStatus = isDev
-        ? EMAIL_DELIVERY_STATUS.DEV_LINK
-        : EMAIL_DELIVERY_STATUS.ACCEPTED;
-      const mode = isDev ? 'development' : 'resend';
-
       // ONLY on provider acceptance: atomically update tokenHash and lifecycle
       const updated = await Invitation.findOneAndUpdate(
         { _id: oldInvitation._id },
@@ -507,16 +512,17 @@ export const resendInvitation = async ({
             tokenHash: newTokenHash,
             expiresAt: newExpiresAt,
             status: INVITATION_STATUS.PENDING,
-            emailDeliveryStatus: deliveryStatus,
-            emailMode: mode,
+            emailDeliveryStatus: EMAIL_DELIVERY_STATUS.ACCEPTED,
             emailProviderMessageId: providerResult.providerMessageId || null,
             emailAttempt: attemptNumber,
             lastSentAt: new Date(),
             emailLastError: null,
+            emailLastEvent: null,
+            emailLastEventAt: null,
           },
           $inc: { resendCount: 1 },
         },
-        { new: true }
+        { returnDocument: 'after' }
       );
 
       if (!updated) {
@@ -537,33 +543,28 @@ export const resendInvitation = async ({
         req,
       });
 
-      if (!isDev) {
-        await logAuditEvent({
-          actor: adminUser,
-          action: AUDIT_ACTIONS.INVITATION_EMAIL_ACCEPTED,
-          targetUser: { _id: oldInvitation.userId, email: oldInvitation.email },
-          invitationId: oldInvitation._id,
-          metadata: {
-            provider: env.EMAIL_PROVIDER,
-            messageId: providerResult.providerMessageId || null,
-          },
-          req,
-        });
-      }
+      await logAuditEvent({
+        actor: adminUser,
+        action: AUDIT_ACTIONS.INVITATION_EMAIL_ACCEPTED,
+        targetUser: { _id: oldInvitation.userId, email: oldInvitation.email },
+        invitationId: oldInvitation._id,
+        metadata: {
+          provider: env.EMAIL_PROVIDER,
+          messageId: providerResult.providerMessageId || null,
+        },
+        req,
+      });
 
       return {
         invitation: toSafeInvitation(updated),
         email: {
-          mode,
-          status: deliveryStatus,
+          status: EMAIL_DELIVERY_STATUS.ACCEPTED,
           providerMessageId: providerResult.providerMessageId,
         },
-        ...(isDev ? { devInvitationLink: invitationUrl, devInvitationUrl: invitationUrl } : {}),
       };
     } else {
       // Send failed: Old token is UNTOUCHED! Status failed saved.
       oldInvitation.emailDeliveryStatus = EMAIL_DELIVERY_STATUS.FAILED;
-      oldInvitation.emailMode = 'resend';
       oldInvitation.emailAttempt = attemptNumber;
       oldInvitation.emailLastError = {
         code: providerResult.error?.code,
@@ -594,6 +595,48 @@ export const resendInvitation = async ({
   } finally {
     await clearSendClaim(oldInvitation._id);
   }
+};
+
+/**
+ * Check and refresh delivery status for an invitation.
+ */
+export const checkInvitationDelivery = async ({ invitationId }) => {
+  const invitation = await Invitation.findById(invitationId);
+  if (!invitation) {
+    throw new ApiError(404, 'NOT_FOUND', 'Invitation not found');
+  }
+
+  if (!invitation.emailProviderMessageId) {
+    throw new ApiError(
+      409,
+      'NO_PROVIDER_MESSAGE_ID',
+      'This invitation has no provider message ID to check delivery status.'
+    );
+  }
+
+  const provider = getEmailProvider();
+  const statusResult = await provider.getStatus(invitation.emailProviderMessageId);
+
+  if (!statusResult.ok) {
+    const statusCode = statusResult.error?.code === 'EMAIL_STATUS_NOT_PERMITTED' ? 403 : 502;
+    throw new ApiError(
+      statusCode,
+      statusResult.error?.code || 'EMAIL_PROVIDER_ERROR',
+      statusResult.error?.message || 'Failed to retrieve delivery status from provider'
+    );
+  }
+
+  invitation.emailLastEvent = statusResult.lastEvent;
+  invitation.emailLastEventAt = new Date();
+  await invitation.save();
+
+  return {
+    id: invitation._id.toString(),
+    status: invitation.emailDeliveryStatus,
+    providerMessageId: invitation.emailProviderMessageId,
+    lastEvent: invitation.emailLastEvent,
+    lastEventAt: invitation.emailLastEventAt,
+  };
 };
 
 /**
