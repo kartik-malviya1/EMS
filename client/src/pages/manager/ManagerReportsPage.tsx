@@ -9,6 +9,7 @@ import { EmptyState } from '../../components/common/EmptyState';
 import { ErrorState } from '../../components/common/ErrorState';
 import { EmployeeCell } from '../../components/common/EmployeeCell';
 import { AttendanceTimeline } from '../../components/common/AttendanceTimeline';
+import { ReportVisualizations } from '../../components/reports/ReportVisualizations';
 import {
   useGetDailyReportQuery,
   downloadReportExport,
@@ -21,24 +22,59 @@ import {
   RotateCcw,
   ChevronLeft,
   ChevronRight,
+  Loader2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
+type PeriodType = 'daily' | 'weekly';
+
+const getTodayStr = () => {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+
+const getWeekBounds = (anchorDateStr: string) => {
+  const base = anchorDateStr ? new Date(`${anchorDateStr}T00:00:00`) : new Date();
+  const day = base.getDay();
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+  const monday = new Date(base);
+  monday.setDate(base.getDate() + diffToMonday);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+
+  const fmt = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${dd}`;
+  };
+
+  return {
+    from: fmt(monday),
+    to: fmt(sunday),
+  };
+};
+
 export const ManagerReportsPage: React.FC = () => {
-  const [date, setDate] = useState('');
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
+  const [periodType, setPeriodType] = useState<PeriodType>('daily');
+  const [selectedDate, setSelectedDate] = useState<string>(getTodayStr());
   const [userId, setUserId] = useState('');
   const [page, setPage] = useState(1);
   const [isExporting, setIsExporting] = useState(false);
+  const [exportingFormat, setExportingFormat] = useState<'pdf' | 'xlsx' | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const { data: teamMembers = [] } = useGetTeamUsersQuery();
 
+  const weekBounds = getWeekBounds(selectedDate);
+
   const queryParams = {
-    date: date || undefined,
-    from: from || undefined,
-    to: to || undefined,
+    date: periodType === 'daily' ? (selectedDate || undefined) : undefined,
+    from: periodType === 'weekly' ? weekBounds.from : undefined,
+    to: periodType === 'weekly' ? weekBounds.to : undefined,
     userId: userId || undefined,
     page,
     limit: 15,
@@ -46,6 +82,20 @@ export const ManagerReportsPage: React.FC = () => {
 
   const { data, isLoading, isError, refetch } =
     useGetDailyReportQuery(queryParams);
+
+  const handlePeriodChange = (type: PeriodType) => {
+    startTransition(() => {
+      setPeriodType(type);
+      setPage(1);
+    });
+  };
+
+  const handleDateChange = (val: string) => {
+    startTransition(() => {
+      setSelectedDate(val);
+      setPage(1);
+    });
+  };
 
   const handlePageChange = (newPage: number) => {
     startTransition(() => {
@@ -63,9 +113,7 @@ export const ManagerReportsPage: React.FC = () => {
 
   const handleResetFilters = () => {
     startTransition(() => {
-      setDate('');
-      setFrom('');
-      setTo('');
+      setSelectedDate(getTodayStr());
       setUserId('');
       setPage(1);
     });
@@ -74,15 +122,16 @@ export const ManagerReportsPage: React.FC = () => {
   const handleExport = async (format: 'xlsx' | 'pdf') => {
     try {
       setIsExporting(true);
+      setExportingFormat(format);
       await downloadReportExport({
         format,
-        date: date || undefined,
-        from: from || undefined,
-        to: to || undefined,
+        date: periodType === 'daily' ? (selectedDate || undefined) : undefined,
+        from: periodType === 'weekly' ? weekBounds.from : undefined,
+        to: periodType === 'weekly' ? weekBounds.to : undefined,
         userId: userId || undefined,
       });
       toast.success(
-        `Report export (${format.toUpperCase()}) downloaded successfully`
+        `Team report (${format.toUpperCase()}) downloaded successfully`
       );
     } catch (err: unknown) {
       toast.error(
@@ -90,12 +139,18 @@ export const ManagerReportsPage: React.FC = () => {
       );
     } finally {
       setIsExporting(false);
+      setExportingFormat(null);
     }
   };
 
   const rows = data?.rows || [];
   const summary = data?.summary;
   const meta = data?.meta;
+
+  const activePeriodLabel =
+    periodType === 'daily'
+      ? selectedDate ? `Date: ${selectedDate}` : 'All Dates'
+      : `Week: ${weekBounds.from} to ${weekBounds.to}`;
 
   return (
     <div className="space-y-6">
@@ -107,6 +162,23 @@ export const ManagerReportsPage: React.FC = () => {
           />
         </div>
         <div className="flex items-center gap-2">
+          {/* Primary Action Button */}
+          <Button
+            variant="default"
+            size="sm"
+            onClick={() => handleExport('pdf')}
+            disabled={isExporting}
+            className="gap-2 h-9 rounded-xl text-xs font-semibold shadow-xs"
+          >
+            {isExporting && exportingFormat === 'pdf' ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <FileText className="w-3.5 h-3.5" />
+            )}
+            {isExporting && exportingFormat === 'pdf' ? 'Generating PDF...' : 'Generate Report'}
+          </Button>
+
+          {/* Secondary Action Button */}
           <Button
             variant="outline"
             size="sm"
@@ -114,73 +186,65 @@ export const ManagerReportsPage: React.FC = () => {
             disabled={isExporting}
             className="gap-1.5 h-9 rounded-xl text-xs font-semibold hover:border-emerald-500/40 hover:text-emerald-600 transition-all"
           >
-            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" /> Export XLSX
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handleExport('pdf')}
-            disabled={isExporting}
-            className="gap-1.5 h-9 rounded-xl text-xs font-semibold hover:border-rose-500/40 hover:text-rose-600 transition-all"
-          >
-            <FileText className="w-3.5 h-3.5 text-rose-600" /> Export PDF
+            {isExporting && exportingFormat === 'xlsx' ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600" />
+            ) : (
+              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+            )}
+            {isExporting && exportingFormat === 'xlsx' ? 'Exporting...' : 'Export XLSX'}
           </Button>
         </div>
       </div>
 
-      {/* Filter Bar */}
+      {/* Period Selection & Filter Bar */}
       <Card className="border-border/70 rounded-2xl shadow-xs">
-        <CardContent className="p-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
+        <CardContent className="p-4 space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 items-end">
+            {/* 1. Daily / Weekly Selector */}
             <div>
               <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
-                Specific Date
+                Period Mode
+              </label>
+              <div className="inline-flex w-full rounded-xl p-0.5 bg-muted/60 border border-border/70">
+                <button
+                  type="button"
+                  onClick={() => handlePeriodChange('daily')}
+                  className={`flex-1 py-1 text-xs font-semibold rounded-lg transition-all ${
+                    periodType === 'daily'
+                      ? 'bg-background text-foreground shadow-xs'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  Daily
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handlePeriodChange('weekly')}
+                  className={`flex-1 py-1 text-xs font-semibold rounded-lg transition-all ${
+                    periodType === 'weekly'
+                      ? 'bg-background text-foreground shadow-xs'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  Weekly
+                </button>
+              </div>
+            </div>
+
+            {/* 2. Date Picker appropriate to selected period */}
+            <div>
+              <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+                {periodType === 'daily' ? 'Report Date' : 'Week Anchor'}
               </label>
               <Input
                 type="date"
-                value={date}
-                onChange={(e) => {
-                  setDate(e.target.value);
-                  setFrom('');
-                  setTo('');
-                  setPage(1);
-                }}
+                value={selectedDate}
+                onChange={(e) => handleDateChange(e.target.value)}
                 className="h-9 text-xs rounded-xl"
               />
             </div>
 
-            <div>
-              <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
-                From Date
-              </label>
-              <Input
-                type="date"
-                value={from}
-                onChange={(e) => {
-                  setFrom(e.target.value);
-                  setDate('');
-                  setPage(1);
-                }}
-                className="h-9 text-xs rounded-xl"
-              />
-            </div>
-
-            <div>
-              <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
-                To Date
-              </label>
-              <Input
-                type="date"
-                value={to}
-                onChange={(e) => {
-                  setTo(e.target.value);
-                  setDate('');
-                  setPage(1);
-                }}
-                className="h-9 text-xs rounded-xl"
-              />
-            </div>
-
+            {/* Team Member Filter */}
             <div>
               <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
                 Team Member
@@ -202,16 +266,34 @@ export const ManagerReportsPage: React.FC = () => {
               </select>
             </div>
 
-            <div className="flex items-end">
+            <div>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleResetFilters}
                 className="h-9 w-full text-xs gap-1 rounded-xl"
               >
-                <RotateCcw className="w-3.5 h-3.5" /> Reset
+                <RotateCcw className="w-3.5 h-3.5" /> Today
               </Button>
             </div>
+          </div>
+
+          {/* Active Period Description Bar */}
+          <div className="pt-2 border-t border-border/50 flex flex-col sm:flex-row sm:items-center justify-between text-xs text-muted-foreground gap-1">
+            <div className="flex items-center gap-2">
+              <span className="inline-block w-2 h-2 rounded-full bg-primary" />
+              <span>
+                Active Selection:{' '}
+                <strong className="text-foreground font-mono">
+                  {periodType === 'daily'
+                    ? `Single Day: ${selectedDate || 'Today'}`
+                    : `Week: ${weekBounds.from} → ${weekBounds.to} (Monday – Sunday)`}
+                </strong>
+              </span>
+            </div>
+            <span className="text-[11px]">
+              {meta?.total ?? rows.length} shift record(s) found
+            </span>
           </div>
         </CardContent>
       </Card>
@@ -256,23 +338,32 @@ export const ManagerReportsPage: React.FC = () => {
           </div>
 
           <div className="rounded-2xl border border-border/70 bg-card p-3.5 shadow-xs">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-violet-600 dark:text-violet-400 block">
-              Pending Audit
+            <span className="text-[11px] font-bold uppercase tracking-wider text-primary block">
+              Total Worked
             </span>
             <span className="text-xl font-bold font-mono text-foreground mt-0.5 block">
-              {summary.verificationStatus?.pending || 0}
+              {summary.totalWorkedHours ?? 0}h
             </span>
           </div>
 
           <div className="rounded-2xl border border-border/70 bg-card p-3.5 shadow-xs">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-orange-600 dark:text-orange-400 block">
-              Pending OT
+            <span className="text-[11px] font-bold uppercase tracking-wider text-violet-600 dark:text-violet-400 block">
+              Pending Reviews
             </span>
             <span className="text-xl font-bold font-mono text-foreground mt-0.5 block">
-              {summary.overtimeStatus?.pending || 0}
+              {(summary.verificationStatus?.pending || 0) + (summary.overtimeStatus?.pending || 0)}
             </span>
           </div>
         </div>
+      )}
+
+      {/* Visualizations (Shift Distribution, Attendance by Day, Verification & Overtime Audit) */}
+      {summary && (
+        <ReportVisualizations
+          summary={summary}
+          totalRecords={meta?.total ?? rows.length}
+          periodLabel={activePeriodLabel}
+        />
       )}
 
       {/* Report Table */}

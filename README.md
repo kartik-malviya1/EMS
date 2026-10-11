@@ -180,3 +180,70 @@ Exceeding limits returns HTTP 429 (`EMAIL_RATE_LIMITED` / `EMAIL_QUOTA_EXCEEDED`
 - `POST /api/admin/invitations/:id/check-delivery` — Check live Resend delivery event.
 - `POST /api/admin/email/test` — Send fixed test template to verify delivery.
 - `GET /api/admin/email/messages/:providerMessageId` — Retrieve delivery event from Resend.
+
+---
+
+## Leave Management Module
+
+The Leave Management module allows employees and managers to request time off, and provides role-based review queues with overlap protection and attendance conflict preservation.
+
+### Features
+1. **Application**: Apply for `annual`, `sick`, `casual`, or `unpaid` leave with date ranges and optional single-date half-day (`first_half` / `second_half`).
+2. **Business Day Calculation**: Duration is deterministically computed in `Asia/Kolkata` business timezone, automatically excluding weekends (Monday–Friday work week).
+3. **Validation & Protection**:
+   - Rejects overlapping leave requests.
+   - Prevents managers from approving their own leave (`CANNOT_SELF_REVIEW`).
+   - If an employee has no assigned manager, the request escalates to organization Admins.
+   - Preserves actual punch-in attendance records if an employee worked on an approved leave date, flagging conflicts for managerial review rather than erasing data.
+4. **Lifecycle & Statuses**: `pending`, `approved`, `rejected`, `cancelled` (eligible while still pending).
+
+### Leave Endpoints
+- `POST /api/leave` — Submit leave application (`{ leaveType, startDate, endDate, isHalfDay, halfDayPeriod, reason }`).
+- `GET /api/leave/me` — List personal leave request history.
+- `GET /api/leave/team` — List assigned team leave requests for Manager review.
+- `GET /api/leave` — Organization-wide leave requests for Admin oversight.
+- `PATCH /api/leave/:id/cancel` — Cancel a pending leave request.
+- `PATCH /api/leave/:id/review` — Review leave request (`{ status: 'approved' | 'rejected', remarks }`).
+
+---
+
+## Notifications & Real-Time Updates
+
+- **Persistent MongoDB Store**: Missed punch-in, missed punch-out, auto-close, verification outcomes, overtime reviews, and leave reviews persist in `Notification` collection.
+- **Idempotent Cron Alerts**: Scheduled jobs run in `Asia/Kolkata` timezone:
+  - Missed Punch-In: Automatically skips non-working days, inactive accounts, Admins, and employees on approved leave.
+  - Missed Punch-Out: Alerts open shifts without duplicating.
+  - Auto-Close: Closes expired open shifts as missed.
+- **Authorized Socket.IO Rooms**:
+  - Connection requires JWT token with `purpose="socket"`.
+  - Derived rooms: `user:<id>`, `team:<managerId>`, `role:admin`.
+  - Client listeners cannot spoof or join unauthorized rooms.
+  - Decoupled REST: All workflows function independently if the WebSocket disconnects.
+
+---
+
+## Independent Deployment Instructions
+
+### React Frontend (Vercel / Netlify)
+1. Set root directory to `client`.
+2. Build command: `npm run build`
+3. Output directory: `dist`
+4. Environment variables:
+   ```env
+   VITE_API_URL=https://your-backend-api.onrender.com/api
+   ```
+
+### Express Backend (Render)
+1. Set root directory to `server`.
+2. Build command: `npm install`
+3. Start command: `npm start`
+4. Environment variables:
+   ```env
+   NODE_ENV=production
+   PORT=5000
+   MONGODB_URI=mongodb+srv://...
+   JWT_SECRET=min_32_characters_random_secret_key
+   CLIENT_ORIGIN=https://your-frontend.vercel.app
+   APP_BASE_URL=https://your-frontend.vercel.app
+   RESEND_API_KEY=re_...
+   ```

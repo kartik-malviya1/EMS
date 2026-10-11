@@ -20,6 +20,9 @@ export interface ReportSummary {
   workingStatus?: Record<WorkingStatus, number>;
   verificationStatus?: Record<VerificationStatus, number>;
   overtimeStatus?: Record<OvertimeStatus, number>;
+  byDate?: Record<string, number>;
+  totalWorkedMinutes?: number;
+  totalWorkedHours?: number;
   totalRecords?: number;
 }
 
