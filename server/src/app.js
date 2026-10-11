@@ -31,16 +31,31 @@ if (env.NODE_ENV === 'production') {
 app.use(helmet());
 
 // CORS configuration
-const allowedOrigins = Array.from(
-  new Set([
-    env.CLIENT_ORIGIN,
-    'http://localhost:5173',
-    'http://127.0.0.1:5173',
-  ].filter(Boolean))
-);
+const parseAllowedOrigins = () => {
+  const raw = env.CLIENT_ORIGIN || '';
+  const origins = raw
+    .split(',')
+    .map((o) => o.trim().replace(/\/+$/, ''))
+    .filter(Boolean);
+  origins.push('http://localhost:5173', 'http://127.0.0.1:5173');
+  return Array.from(new Set(origins));
+};
+
 app.use(
   cors({
-    origin: allowedOrigins,
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      const cleanOrigin = origin.replace(/\/+$/, '');
+      const allowed = parseAllowedOrigins();
+      if (
+        allowed.includes(cleanOrigin) ||
+        cleanOrigin.endsWith('.vercel.app') ||
+        env.NODE_ENV !== 'production'
+      ) {
+        return callback(null, true);
+      }
+      return callback(new Error(`Not allowed by CORS: ${origin}`));
+    },
     credentials: true,
   })
 );

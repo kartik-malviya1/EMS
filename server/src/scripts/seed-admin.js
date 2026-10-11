@@ -1,9 +1,9 @@
-import dotenv from 'dotenv';
-import { env } from '../config/env.js';
-import { connectDB, disconnectDB } from '../config/db.js';
-import { User } from '../models/user.model.js';
-import { ROLES } from '../config/constants.js';
-import { logger } from '../utils/logger.js';
+import dotenv from "dotenv";
+import { env } from "../config/env.js";
+import { connectDB, disconnectDB } from "../config/db.js";
+import { User } from "../models/user.model.js";
+import { ROLES } from "../config/constants.js";
+import { logger } from "../utils/logger.js";
 
 dotenv.config();
 
@@ -13,21 +13,22 @@ export const seedAdmin = async () => {
   try {
     await connectDB();
 
-    const adminEmail = (env.ADMIN_EMAIL || 'admin@example.com').toLowerCase().trim();
-    const adminName = (env.ADMIN_NAME || 'System Administrator').trim();
-    const adminPassword = env.ADMIN_PASSWORD || 'AdminPassword123';
+    const adminEmail = (env.ADMIN_EMAIL || "admin@example.com")
+      .toLowerCase()
+      .trim();
+    const adminName = (env.ADMIN_NAME || "System Administrator").trim();
+    const adminPassword = env.ADMIN_PASSWORD || "AdminPassword123";
 
-    // 1. Idempotency check: if admin email already exists, ensure active and return
+    // 1. Idempotency check: if admin email already exists, ensure active and sync password
     const existing = await User.findOne({ email: adminEmail });
     if (existing) {
-      if (existing.accountStatus !== 'active' || !existing.isActive) {
-        existing.accountStatus = 'active';
-        existing.isActive = true;
-        await existing.save();
-        logger.info(`Updated existing admin user ${adminEmail} to active.`);
-      } else {
-        logger.info(`Admin user with email ${adminEmail} already exists. Skipping.`);
-      }
+      existing.passwordHash = await User.hashPassword(adminPassword);
+      existing.accountStatus = "active";
+      existing.isActive = true;
+      await existing.save();
+      logger.info(
+        `Updated existing admin user ${adminEmail} (password synced with ADMIN_PASSWORD, active).`
+      );
       await disconnectDB();
       return;
     }
@@ -35,7 +36,7 @@ export const seedAdmin = async () => {
     // 2. Refuse weak password
     if (!passwordRegex.test(adminPassword)) {
       logger.error(
-        'Admin password does not meet policy requirements (8-72 chars, at least one letter and one number).'
+        "Admin password does not meet policy requirements (8-72 chars, at least one letter and one number).",
       );
       await disconnectDB();
       process.exit(1);
@@ -50,20 +51,21 @@ export const seedAdmin = async () => {
       role: ROLES.ADMIN,
       managerId: null,
       isActive: true,
-      accountStatus: 'active',
+      accountStatus: "active",
     });
 
-    logger.info(`Admin user successfully seeded: ${admin.email} (${admin._id})`);
+    logger.info(
+      `Admin user successfully seeded: ${admin.email} (${admin._id})`,
+    );
     await disconnectDB();
   } catch (error) {
-    logger.error('Error seeding admin user:', error);
+    logger.error("Error seeding admin user:", error);
     await disconnectDB();
     process.exit(1);
   }
 };
 
-// If run directly
-if (process.argv[1]?.endsWith('seed-admin.js')) {
+if (process.argv[1]?.endsWith("seed-admin.js")) {
   seedAdmin().then(() => process.exit(0));
 }
 

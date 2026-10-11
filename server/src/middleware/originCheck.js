@@ -13,12 +13,20 @@ export const originCheck = (req, _res, next) => {
     return next();
   }
 
-  const allowedOrigin = env.CLIENT_ORIGIN || 'http://localhost:5173';
+  const cleanOrigin = origin.replace(/\/+$/, '');
+  const rawAllowed = env.CLIENT_ORIGIN || 'http://localhost:5173';
+  const allowedList = rawAllowed
+    .split(',')
+    .map((o) => o.trim().replace(/\/+$/, ''))
+    .filter(Boolean);
+
   const isDevAllowed =
     env.NODE_ENV !== 'production' &&
-    (origin === 'http://localhost:5173' || origin === 'http://127.0.0.1:5173');
+    (cleanOrigin === 'http://localhost:5173' || cleanOrigin === 'http://127.0.0.1:5173');
 
-  if (origin !== allowedOrigin && !isDevAllowed) {
+  const isVercelAllowed = cleanOrigin.endsWith('.vercel.app');
+
+  if (!allowedList.includes(cleanOrigin) && !isDevAllowed && !isVercelAllowed) {
     return next(new ApiError(403, 'BAD_ORIGIN', 'Origin not permitted'));
   }
 
