@@ -1,14 +1,17 @@
-import { io, Socket } from 'socket.io-client';
-import { toast } from 'sonner';
-import { store } from '../../app/store';
-import { apiSlice, getBaseUrl } from '../api/apiSlice';
-import type { Notification } from '../../types/models';
+import { io, Socket } from "socket.io-client";
+import { toast } from "sonner";
+import { store } from "../../app/store";
+import { apiSlice, getBaseUrl } from "../api/apiSlice";
+import type { Notification } from "../../types/models";
 
-export type SocketConnectionStatus = 'connected' | 'connecting' | 'disconnected';
+export type SocketConnectionStatus =
+  | "connected"
+  | "connecting"
+  | "disconnected";
 
 let socket: Socket | null = null;
 let statusListeners: Array<(status: SocketConnectionStatus) => void> = [];
-let currentStatus: SocketConnectionStatus = 'disconnected';
+let currentStatus: SocketConnectionStatus = "disconnected";
 
 function setConnectionStatus(status: SocketConnectionStatus) {
   currentStatus = status;
@@ -16,7 +19,7 @@ function setConnectionStatus(status: SocketConnectionStatus) {
 }
 
 export function subscribeSocketStatus(
-  listener: (status: SocketConnectionStatus) => void
+  listener: (status: SocketConnectionStatus) => void,
 ): () => void {
   statusListeners.push(listener);
   listener(currentStatus);
@@ -32,8 +35,8 @@ export function getSocketStatus(): SocketConnectionStatus {
 export async function fetchSocketToken(): Promise<string | null> {
   try {
     const res = await fetch(`${getBaseUrl()}/auth/socket-token`, {
-      method: 'GET',
-      credentials: 'include',
+      method: "GET",
+      credentials: "include",
     });
     if (!res.ok) return null;
     const json = await res.json();
@@ -47,18 +50,18 @@ function getSocketUrl(): string {
   if (import.meta.env.VITE_SOCKET_URL) {
     return import.meta.env.VITE_SOCKET_URL;
   }
-  if (import.meta.env.VITE_API_BASE_URL) {
+  if (import.meta.env.API_BASE_URL) {
     try {
-      const parsed = new URL(import.meta.env.VITE_API_BASE_URL);
+      const parsed = new URL(import.meta.env.API_BASE_URL);
       return parsed.origin;
     } catch {
       // ignore
     }
   }
-  if (typeof window !== 'undefined' && window.location?.origin) {
+  if (typeof window !== "undefined" && window.location?.origin) {
     return window.location.origin;
   }
-  return 'http://localhost:5000';
+  return "http://localhost:5000";
 }
 
 export async function connectSocket(): Promise<Socket | null> {
@@ -66,10 +69,10 @@ export async function connectSocket(): Promise<Socket | null> {
     return socket;
   }
 
-  setConnectionStatus('connecting');
+  setConnectionStatus("connecting");
   const token = await fetchSocketToken();
   if (!token) {
-    setConnectionStatus('disconnected');
+    setConnectionStatus("disconnected");
     return null;
   }
 
@@ -80,37 +83,37 @@ export async function connectSocket(): Promise<Socket | null> {
       auth: { token },
       autoConnect: false,
       withCredentials: true,
-      transports: ['websocket', 'polling'],
+      transports: ["websocket", "polling"],
       reconnectionAttempts: 10,
       reconnectionDelay: 2000,
     });
 
-    socket.on('connect', () => {
-      setConnectionStatus('connected');
+    socket.on("connect", () => {
+      setConnectionStatus("connected");
       // On reconnect/connect, invalidate cache tags to catch up
       store.dispatch(
         apiSlice.util.invalidateTags([
-          'Today',
-          'Attendance',
-          'Dashboard',
-          'Notification',
-          'Overtime',
-          'Report',
-        ])
+          "Today",
+          "Attendance",
+          "Dashboard",
+          "Notification",
+          "Overtime",
+          "Report",
+        ]),
       );
     });
 
-    socket.on('disconnect', () => {
-      setConnectionStatus('disconnected');
+    socket.on("disconnect", () => {
+      setConnectionStatus("disconnected");
     });
 
-    socket.on('connect_error', () => {
-      setConnectionStatus('disconnected');
+    socket.on("connect_error", () => {
+      setConnectionStatus("disconnected");
     });
 
     // Handle token refresh on reconnection attempt
-    socket.io.on('reconnect_attempt', async () => {
-      setConnectionStatus('connecting');
+    socket.io.on("reconnect_attempt", async () => {
+      setConnectionStatus("connecting");
       const freshToken = await fetchSocketToken();
       if (freshToken && socket) {
         socket.auth = { token: freshToken };
@@ -118,32 +121,29 @@ export async function connectSocket(): Promise<Socket | null> {
     });
 
     // Realtime Events Handling
-    socket.on('attendance:updated', () => {
+    socket.on("attendance:updated", () => {
       store.dispatch(
         apiSlice.util.invalidateTags([
-          'Today',
-          'Attendance',
-          'Dashboard',
-          'Overtime',
-          'Report',
-        ])
+          "Today",
+          "Attendance",
+          "Dashboard",
+          "Overtime",
+          "Report",
+        ]),
       );
     });
 
-    socket.on(
-      'notification:new',
-      (payload: { notification: Notification }) => {
-        store.dispatch(apiSlice.util.invalidateTags(['Notification']));
+    socket.on("notification:new", (payload: { notification: Notification }) => {
+      store.dispatch(apiSlice.util.invalidateTags(["Notification"]));
 
-        const n = payload?.notification;
-        if (n) {
-          toast.info(n.title, {
-            description: n.message,
-            duration: 6000,
-          });
-        }
+      const n = payload?.notification;
+      if (n) {
+        toast.info(n.title, {
+          description: n.message,
+          duration: 6000,
+        });
       }
-    );
+    });
   } else {
     socket.auth = { token };
   }
@@ -157,7 +157,7 @@ export function disconnectSocket(): void {
     socket.disconnect();
     socket = null;
   }
-  setConnectionStatus('disconnected');
+  setConnectionStatus("disconnected");
 }
 
 export function getSocketInstance(): Socket | null {
