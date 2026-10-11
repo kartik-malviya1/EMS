@@ -1,10 +1,11 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 import request from 'supertest';
 import app from '../app.js';
 import { User } from '../models/user.model.js';
 import { Invitation } from '../models/invitation.model.js';
 import { AuditLog } from '../models/auditLog.model.js';
 import { ROLES, ACCOUNT_STATUS, INVITATION_STATUS, AUDIT_ACTIONS } from '../config/constants.js';
+import { setEmailProvider, getEmailProvider } from '../services/email/index.js';
 
 describe('Invite-Only Employee Lifecycle and Invitations', () => {
   let adminCookie;
@@ -14,7 +15,25 @@ describe('Invite-Only Employee Lifecycle and Invitations', () => {
   let managerUser;
   let employeeUser;
 
+  let originalProvider;
+  let lastSentToken = null;
+
   beforeEach(async () => {
+    lastSentToken = null;
+    const fakeProvider = {
+      send: vi.fn().mockImplementation(async ({ html, text }) => {
+        const match = /token=([a-f0-9]+)/i.exec(text || html || '');
+        if (match) lastSentToken = match[1];
+        return { ok: true, providerMessageId: 'fake_provider_msg_123' };
+      }),
+      getStatus: vi.fn().mockResolvedValue({
+        ok: true,
+        lastEvent: 'delivered',
+        createdAt: new Date().toISOString(),
+      }),
+    };
+    originalProvider = getEmailProvider();
+    setEmailProvider(fakeProvider);
     // Clean collections
     await User.deleteMany({});
     await Invitation.deleteMany({});
@@ -234,10 +253,7 @@ describe('Invite-Only Employee Lifecycle and Invitations', () => {
         });
 
       invitationId = res.body.data.invitation.id;
-      // In dev mode, devInvitationUrl contains raw token: /accept-invitation?token=...
-      const devUrl = res.body.data.devInvitationUrl;
-      const urlObj = new URL(devUrl);
-      rawToken = urlObj.searchParams.get('token');
+      rawToken = lastSentToken;
     });
 
     it('validates a valid pending invitation token and returns safe metadata', async () => {
@@ -398,9 +414,8 @@ describe('Invite-Only Employee Lifecycle and Invitations', () => {
         .send({ token: rawToken });
       expect([404, 410]).toContain(oldTokenRes.status);
 
-      // Extract new token from resend response
-      const newUrl = resendRes.body.data.devInvitationLink || resendRes.body.data.devInvitationUrl;
-      const newToken = new URL(newUrl).searchParams.get('token');
+      // Extract new token from fake email provider send capture
+      const newToken = lastSentToken;
       expect(newToken).not.toBe(rawToken);
 
       // New token validates and accepts successfully
@@ -499,5 +514,11 @@ describe('Invite-Only Employee Lifecycle and Invitations', () => {
       expect(actions).toContain(AUDIT_ACTIONS.INVITATION_CREATED);
       expect(actions).toContain(AUDIT_ACTIONS.INVITATION_REVOKED);
     });
+  });
+
+  afterAll(() => {
+    if (originalProvider) {
+      setEmailProvider(originalProvider);
+    }
   });
 });

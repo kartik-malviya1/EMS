@@ -26,140 +26,157 @@ A full-stack role-based Attendance Management System featuring location tracking
 5. `npm test` (runs frontend test suite)
 6. `npm run lint` (runs ESLint)
 
+---
+
 ## Assumptions & Rules (per CLAUDE.md)
-- **Administrative Role**: Admin is strictly an administrative-only role: no punch in/out, no personal attendance records, no overtime requests, and no shift alerts.
-- **Workforce Roles**: `employee` and `manager`. Manager self-attendance is an implementation assumption (the assignment only describes employee punch-in/out).
-- **Reviewer Scope Matrix**: Employee records are reviewed by their assigned manager or any admin. Manager records are reviewed by admins only. No one reviews their own records (self-review blocked with 403).
-- **Scope at Request Time**: Authority over pending items is evaluated dynamically at request time (if an employee's manager is reassigned, pending review items move with the employee).
-- **Unassigned Employees**: Employees with no assigned manager have their overtime requests and review queue routed to active admins.
-- **Midnight Boundary**: Shifts crossing business midnight are not supported; auto-close at `AUTO_CLOSE_TIME` marks unclosed shifts as missed.
-- **BUSINESS_TIMEZONE**: `Asia/Kolkata` (default). All work dates and attendance calculated server-side using server clock.
-- **Shift Duration**: Standard shift is 480 minutes (8 hours). `>= 480 min` is `completed`, `< 480 min` is `incomplete`.
-- **One Record per Day**: Strictly one attendance record per employee per business work date.
-- **Overtime**: Allowed only for completed records exceeding 480 minutes. Overtime minutes = time beyond 8 hours.
-- **Live Selfies**: Live camera capture only (no file uploads), authenticated and streamed server-side through signed proxy.
+1. **Manager Self-Attendance**: Manager self-attendance is an implementation assumption (the assignment only describes employee punch-in/out).
+2. **Administrative Role**: Admin is strictly an administrative-only role: no punch in/out, no personal attendance records, no overtime requests, and no shift alerts.
+3. **Midnight Boundary**: Shifts crossing business midnight are not supported; auto-close at `AUTO_CLOSE_TIME` marks unclosed shifts as missed.
+4. **Scope at Request Time**: Authority over pending items is evaluated dynamically at request time (if an employee's manager is reassigned, pending review items move with the employee).
+5. **BUSINESS_TIMEZONE**: `Asia/Kolkata` (default). All work dates and attendance calculated server-side using server clock.
+6. **One Record per Day**: Strictly one attendance record per employee per business work date.
+7. **Floor Minutes & No Breaks**: `workedMinutes = floor((punchOut - punchIn)/60000)`, no break deductions.
+8. **Overtime Rule**: Overtime is defined as time worked beyond standard shift duration of 480 minutes (8 hours).
+9. **Reviewer Scope Matrix**: Employee records are reviewed by their assigned manager or any admin. Manager records are reviewed by admins only. No one reviews their own records (self-review blocked with 403).
+10. **Lazy Auto-Close**: Lazy auto-close at punch-in covers server sleep on free hosting.
+11. **Single-Instance Cron**: node-cron scheduled jobs assume a single running backend instance.
+12. **Same-Origin Proxy Cookies**: JWT session cookie is first-party via dev proxy locally and Vercel rewrite in production.
+13. **Live Selfies**: Live camera capture only (no file uploads), authenticated and streamed server-side through signed Cloudinary proxy.
+14. **Dual Onboarding Paths**: Both public signup (controlled by `ALLOW_PUBLIC_REGISTRATION`) and invite-only employee onboarding are supported.
+15. **Resend Sandbox Sender**: When using `onboarding@resend.dev`, Resend can deliver testing emails only to the Resend account owner's email address. Any external recipient requires a verified custom domain.
+16. **Accepted vs Delivered**: An `accepted` status indicates Resend API accepted and queued the email; actual delivery to inbox is confirmed when `last_event` reports `delivered`.
+17. **Webhooks Omission**: Asynchronous push delivery webhooks from Resend are not implemented because they require a publicly reachable HTTPS webhook URL with signature verification.
+18. **Zero Simulation / Real Delivery**: Development mode, local simulated links, and fake delivery fallbacks have been completely removed from the entire application. All invitations dispatch real emails through Resend.
+19. **APP_BASE_URL & Domains**: Invitation links are built using `new URL('/accept-invitation', APP_BASE_URL)`. Changing `APP_BASE_URL` on the backend host (and matching `CLIENT_ORIGIN`) is how deployed links use the real domain.
 
 ---
 
-## Invite-Only Employee Lifecycle & Resend Email Integration
+## Invite-Only Employee Lifecycle & Resend Integration
 
 ### 1. Resend Email Service Setup
-The portal integrates with [Resend](https://resend.com) for sending transactional employee invitations.
+The portal integrates exclusively with the official [Resend](https://resend.com) Node SDK for transactional email dispatch.
 
-#### Getting an API Key
+#### Account & API Key Configuration
 1. Sign up or log in at [resend.com](https://resend.com).
-2. Navigate to **API Keys** and generate a new key (`re_...`).
+2. Go to **API Keys** and generate a new key (`re_...`).
+   - **Permission Trade-off**:
+     - **Sending access (send-only)**: Allows creating and resending emails. Status checks via `resend.emails.get` will return 403 (`EMAIL_STATUS_NOT_PERMITTED`).
+     - **Full access**: Allows both sending emails and querying message delivery events (`last_event`). Recommended for admin delivery diagnostics.
 3. Add the key to `server/.env`:
    ```bash
    RESEND_API_KEY=re_your_api_key_here
-   EMAIL_MODE=resend
+   EMAIL_PROVIDER=resend
+   EMAIL_FROM=AMS Portal <onboarding@resend.dev>
+   APP_BASE_URL=http://localhost:5173
    ```
-   *(Ensure the key is kept private. Never commit `.env` to version control).*
+   *(Keep secrets confidential. Never commit `.env` to version control).*
 
 #### Manual Verification Smoke Test
-Before using live invitations in production, test your configuration using the dedicated smoke script:
+Before creating invitations, verify that your API key and sender configuration work using the smoke script:
 ```bash
 cd server
 npm run email:smoke -- --to user@example.com --confirm
 ```
-> **Safety Notice:** Both `--to <recipient>` and the explicit `--confirm` flag are mandatory to prevent accidental email dispatch. The script prints only redacted/summary outputs without echoing credentials.
+> Both `--to <address>` and `--confirm` flags are mandatory. The script sends one plain test email and outputs only the provider message ID or mapped error code.
 
 ---
 
-### 2. Delivery Mode Matrix
-
-| Mode | Environment Variable | External API Calls | Delivery Status | Dev Activation Link |
-|---|---|---|---|---|
-| **Development** | `EMAIL_MODE=development` | None | `dev_link` | Displayed once in Admin UI modal & returned in response |
-| **Resend** | `EMAIL_MODE=resend` | Dispatches via Resend SDK | `accepted` / `failed` | **Never** returned or exposed in responses/logs |
+### 2. Sandbox Sender (`onboarding@resend.dev`) Rules
+- When `EMAIL_FROM` uses domain `resend.dev` (e.g. `onboarding@resend.dev`), Resend enforces test sandbox mode.
+- **Symptom & 403 Error**: Attempting to send to any address other than your Resend account email fails with Resend 403 `validation_error`. The portal maps this to `EMAIL_SANDBOX_RECIPIENT_RESTRICTED` with actionable guidance: *"Resend's test sender can only deliver to your own Resend account email. Verify a domain at resend.com/domains and set EMAIL_FROM to an address on it to email other people."*
 
 ---
 
-### 3. Sandbox Sender (`onboarding@resend.dev`) Limitations
-- **Default Sender:** By default, `EMAIL_FROM` is set to `"AMS Portal <onboarding@resend.dev>"`.
-- **Sandbox Recipient Restriction:** Resend's test sender can **only deliver emails to the email address registered with your Resend account**.
-- **Automatic Error Detection:** If an invitation is sent to an external address while using the sandbox sender, Resend returns HTTP 403 `validation_error`. The portal automatically translates this into the actionable internal code `EMAIL_SANDBOX_RECIPIENT_RESTRICTED` with instructions to verify a custom domain at `resend.com/domains`.
-
----
-
-### 4. Custom Sending Domain Verification (DNS Steps)
-To send invitations to any employee email address across your organization:
-1. Go to **Domains** on [resend.com/domains](https://resend.com/domains) and click **Add Domain**.
-2. Add the DNS records provided by Resend to your domain registrar / DNS provider:
-   - **SPF (TXT):** Authorizes Resend/Amazon SES mail servers.
-   - **DKIM (CNAME / TXT):** Provides cryptographic email signing to prevent spoofing.
-   - **Return-Path (MX / CNAME):** Handles delivery route verification.
-3. Wait for DNS propagation and click **Verify Domain** in the Resend dashboard.
-4. Update `server/.env`:
+### 3. Custom Sending Domain Verification
+To email colleagues and team members across any organization:
+1. Go to [resend.com/domains](https://resend.com/domains) and add your domain. Resend recommends using a dedicated subdomain such as `notifications.<yourdomain.com>`.
+2. Configure DNS records with your DNS provider:
+   - **SPF (TXT)**: Authorizes mail server routing.
+   - **DKIM (CNAME / TXT)**: Cryptographic signature to pass DMARC and avoid spam folders.
+   - **Return-Path (MX / CNAME)**: Bounce handling route.
+3. Wait for DNS verification, then update `server/.env`:
    ```bash
-   EMAIL_FROM="AMS Portal <invitations@yourcompany.com>"
+   EMAIL_FROM=AMS Portal <invitations@notifications.yourdomain.com>
    ```
 
 ---
 
-### 5. Resend Free Tier Limits & Quotas
-- **Daily Limit:** 100 emails per day.
-- **Monthly Limit:** 3,000 emails per month.
-- **Burst Rate Limit:** 2 requests per second.
-- If limits are exceeded, Resend responds with HTTP 429 (`EMAIL_RATE_LIMITED` / `EMAIL_QUOTA_EXCEEDED`).
+### 4. Delivery Status Lifecycle & Status Meaning
+
+| Status | Meaning & Details |
+|---|---|
+| `pending` | Invitation created or queued; send claim in progress. |
+| `accepted` | Resend API accepted the request and assigned a `providerMessageId`. **Note: This does not prove inbox delivery.** |
+| `failed` | Resend API or network error prevented delivery. Stored under `emailLastError` with mapped error code. |
+
+#### Delivery Events (`emailLastEvent`)
+When checking status via `/api/admin/invitations/:id/check-delivery` or the Admin Settings diagnostic panel, Resend's delivery events are mapped:
+- **Delivered**: Recipient's mail server accepted message delivery.
+- **Bounced**: Delivery rejected by recipient mail server (hard or soft bounce).
+- **Complained**: Recipient marked the message as spam.
+- **Delayed**: Temporary delivery delay encountered by upstream mail servers.
+- **Opened / Clicked**: Recipient engaged with the email.
 
 ---
 
-### 6. Provider Error Diagnosis Table
+### 5. Resend Free Plan Quotas
+- **Daily Limit**: 100 emails / day.
+- **Monthly Limit**: 3,000 emails / month.
+- **Burst Rate Limit**: 2 requests / second.
+Exceeding limits returns HTTP 429 (`EMAIL_RATE_LIMITED` / `EMAIL_QUOTA_EXCEEDED`).
 
-| Internal Code | HTTP Status | Root Cause | Remediation |
+---
+
+### 6. Error-Code Diagnosis Table
+
+| Internal Code | HTTP | Root Cause | Actionable Guidance |
 |---|---|---|---|
-| `EMAIL_NOT_CONFIGURED` | 500 / 502 | `RESEND_API_KEY` missing or using placeholder `re_xxxxxxxxx` in `resend` mode | Configure a real API key in `server/.env` |
-| `EMAIL_INVALID_API_KEY` | 502 | Resend rejected key with HTTP 401 | Rotate and paste a valid API key in `server/.env` |
-| `EMAIL_SANDBOX_RECIPIENT_RESTRICTED` | 502 | Sender is `onboarding@resend.dev` and recipient is not your account owner email | Verify a custom sending domain at `resend.com/domains` or use `EMAIL_MODE=development` |
-| `EMAIL_DOMAIN_NOT_VERIFIED` | 502 | `EMAIL_FROM` domain has not completed DNS verification | Complete DNS records (SPF, DKIM) on `resend.com/domains` |
-| `EMAIL_RATE_LIMITED` | 502 | Exceeded 2 req/sec burst limit | Wait a few seconds before retrying |
-| `EMAIL_QUOTA_EXCEEDED` | 502 | Exceeded 100/day or 3,000/month limit | Upgrade Resend tier or wait for quota reset |
-| `EMAIL_TIMEOUT` | 502 | Upstream Resend call exceeded timeout (default: 10s) | Check network connectivity; retry automatically reuses idempotency key |
-| `EMAIL_PROVIDER_ERROR` | 502 | Network error or unexpected Resend API response | Check network connection or upstream Resend status |
+| `EMAIL_NOT_CONFIGURED` | 503 | `RESEND_API_KEY` unset, empty, or placeholder | Set a real key starting with `re_` in `server/.env` |
+| `EMAIL_INVALID_API_KEY` | 502 | Key rejected by Resend with 401 | Verify and replace `RESEND_API_KEY` |
+| `EMAIL_SANDBOX_RECIPIENT_RESTRICTED` | 502 | Sender is `resend.dev` and recipient is not account owner | Verify custom domain at `resend.com/domains` and update `EMAIL_FROM` |
+| `EMAIL_DOMAIN_NOT_VERIFIED` | 502 | `EMAIL_FROM` domain not verified on Resend | Complete DNS records (DKIM/SPF) on `resend.com/domains` |
+| `EMAIL_STATUS_NOT_PERMITTED` | 502 | API key has "Sending access" only; status checks forbidden | Create a "Full access" API key to inspect delivery events |
+| `EMAIL_RATE_LIMITED` | 502 | Exceeded 2 req/s burst limit | Wait and retry after cooldown |
+| `EMAIL_QUOTA_EXCEEDED` | 502 | Exceeded daily/monthly plan quota | Wait for quota reset or upgrade Resend tier |
+| `EMAIL_INVALID_RECIPIENT_OR_PARAMS` | 502 | Invalid email syntax or parameters | Verify recipient email address format |
+| `EMAIL_TIMEOUT` | 502 | Request exceeded `EMAIL_SEND_TIMEOUT_MS` (10s) | Retry reuses idempotency key to prevent duplicates |
+| `EMAIL_PROVIDER_ERROR` | 502 | Upstream network failure | Check server connectivity to `api.resend.com` |
 
 ---
 
-### 7. Tunnels & External Access (`ngrok` / `cloudflared`)
-When testing the invitation flow with external mobile devices or tunnels:
-1. Start your tunnel to the Vite client (e.g., `cloudflared tunnel --url http://localhost:5173` or `ngrok http 5173`).
-2. Update `server/.env`:
-   ```bash
-   APP_BASE_URL=https://your-tunnel-name.trycloudflare.com
-   CLIENT_ORIGIN=https://your-tunnel-name.trycloudflare.com
-   ```
-3. The `originCheck` middleware allows `CLIENT_ORIGIN` for CSRF protection while normalizing trailing slashes automatically.
+### 7. Tunnels & Deployed Domain Switching
+- **Local Dev / Mobile Testing via Tunnel**:
+  1. Start tunnel (e.g. `cloudflared tunnel --url http://localhost:5173` or `ngrok http 5173`).
+  2. In `client/vite.config.ts`, ensure `server.allowedHosts` includes your tunnel domain if required.
+  3. Update `server/.env`:
+     ```bash
+     APP_BASE_URL=https://your-tunnel.trycloudflare.com
+     CLIENT_ORIGIN=https://your-tunnel.trycloudflare.com
+     ```
+- **Production Deployment (Vercel + Render)**:
+  - When your Vercel frontend domain is active (e.g. `https://ams.yourdomain.com`), set:
+    ```bash
+    APP_BASE_URL=https://ams.yourdomain.com
+    CLIENT_ORIGIN=https://ams.yourdomain.com
+    ```
+    on the Render backend host. All generated invitation links will automatically point to the production Vercel domain.
 
 ---
 
-### 8. Webhook Disclaimer
-- Transactional invitation tokens are self-contained, high-entropy, and cryptographically hashed (`SHA-256`) in MongoDB with a default 72-hour expiration.
-- Real-time delivery tracking is recorded directly upon provider dispatch (`accepted`, `failed`, or `dev_link`). Asynchronous delivery/bounce webhooks are decoupled from the token lifecycle and omitted by design to keep local development friction-free.
+### 8. Endpoints Summary
 
----
+#### Public Auth & Self-Service
+- `GET /api/auth/config` — Public feature flags (`{ publicRegistrationEnabled: boolean }`).
+- `POST /api/auth/invitations/request-link` — Self-service invitation request (`{ email }`). Always returns generic 200 to prevent user enumeration. Dispatches in background.
+- `POST /api/auth/invitations/validate` — Validate invitation token from URL.
+- `POST /api/auth/accept-invitation` — Set password and activate account.
 
-### 9. Assumptions & Operational Rules
-- **Token Security:** Raw invitation tokens are generated using `crypto.randomBytes(32)` and never stored or logged in plain text. Only single-use SHA-256 token hashes are persisted.
-- **Resend Idempotency:** Each invitation send attempt generates an idempotency key (`invitation:<id>:attempt:<n>`). If a request times out, the attempt counter is not incremented on retry to guarantee provider deduplication.
-- **Resend Cooldown:** Resending an invitation enforces a minimum 60-second cooldown (`INVITATION_RESEND_COOLDOWN_SECONDS`) and a maximum limit of 10 resends (`INVITATION_MAX_RESENDS`).
-- **Atomic Lease:** Concurrent sends on the same invitation are prevented via an atomic 30-second `sendingAt` lease returning `409 SEND_IN_PROGRESS`.
-- **Public Registration Policy:** Controlled by `ALLOW_PUBLIC_REGISTRATION` (default: `true`, creating `employee` accounts). When set to `false`, open signups return `403 SIGNUP_DISABLED` and the frontend informs users that registration is invitation-only.
-- **Account Lifecycles:**
-  - `invited`: Record provisioned, awaiting initial password setup.
-  - `active`: Normal operational status.
-  - `suspended`: Login and API access immediately blocked; historical punch records retained.
-  - `deactivated`: Account decommissioned; historical data preserved.
-
----
-
-### 10. Admin Invitation API Endpoints
-- `POST /api/admin/invitations` — Issue employee/manager invitation (Rate limited: 30 / 15 min).
-- `GET /api/admin/invitations` — List invitations (filters: `status`, `role`, `search`, pagination).
-- `GET /api/admin/invitations/email-status` — Retrieve email provider configuration status.
-- `GET /api/admin/invitations/:id` — View single invitation details.
-- `POST /api/admin/invitations/:id/resend` — Invalidate previous token and issue a fresh one.
-- `POST /api/admin/invitations/:id/revoke` — Revoke a pending invitation.
-- `POST /api/auth/invitations/validate` — Validate submitted invitation token (public).
-- `POST /api/auth/accept-invitation` — Set password and activate account (public).
-
-
+#### Admin Invitation Management & Verification
+- `GET /api/admin/invitations/email-status` — Provider configuration overview.
+- `POST /api/admin/invitations` — Issue employee/manager invitation.
+- `GET /api/admin/invitations` — List invitations with delivery status badges and last events.
+- `POST /api/admin/invitations/:id/resend` — Rotate token and resend invitation email.
+- `POST /api/admin/invitations/:id/revoke` — Revoke pending invitation.
+- `POST /api/admin/invitations/:id/check-delivery` — Check live Resend delivery event.
+- `POST /api/admin/email/test` — Send fixed test template to verify delivery.
+- `GET /api/admin/email/messages/:providerMessageId` — Retrieve delivery event from Resend.
