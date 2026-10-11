@@ -1,11 +1,8 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { useAppDispatch, useAppSelector } from '../app/hooks';
-import { useGetMeQuery } from '../features/auth/authApi';
-import { setCredentials, logoutUser, setInitialized } from '../features/auth/authSlice';
+import { useAuth } from '../features/auth/useAuth';
 import { AppShell } from '../components/layout/AppShell';
 import type { Role } from '../types/models';
-
 import { getRoleDefaultPath } from './roleUtils';
 
 interface ProtectedRouteProps {
@@ -20,28 +17,10 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   withShell = true,
 }) => {
   const location = useLocation();
-  const dispatch = useAppDispatch();
-  const { user, isAuthenticated, isInitialized } = useAppSelector(
-    (state) => state.auth
-  );
+  const { user, isLoading, isAuthenticated, isError } = useAuth();
 
-  const { data: meData, isLoading, isError, isSuccess } = useGetMeQuery(undefined, {
-    // Only skip if already initialized and authenticated
-    skip: isInitialized && isAuthenticated,
-  });
-
-  useEffect(() => {
-    if (isSuccess && meData) {
-      dispatch(setCredentials({ user: meData }));
-    } else if (isError) {
-      dispatch(logoutUser());
-    } else if (!isLoading && !meData && !isAuthenticated) {
-      dispatch(setInitialized(true));
-    }
-  }, [isSuccess, isError, isLoading, meData, isAuthenticated, dispatch]);
-
-  // Loading state while restoring session from /auth/me
-  if (!isInitialized && isLoading) {
+  // Full-page loading state while /auth/me is loading - NEVER redirect during loading
+  if (isLoading) {
     return (
       <div
         data-testid="protected-loading"
@@ -57,13 +36,9 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     );
   }
 
-  // Unauthenticated -> redirect to /login
-  if (!isAuthenticated || !user) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
-  }
-
-  // Account inactive check
-  if (!user.isActive) {
+  // Redirect to /login only after /auth/me finishes with 401 / error / unauthenticated
+  // Preserve the original location in router state so login returns the user to it.
+  if (isError || !isAuthenticated || !user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 

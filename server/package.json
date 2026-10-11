@@ -17,7 +17,8 @@
     "seed:demo": "node src/scripts/seed-demo.js",
     "db:purge-admin-attendance": "node src/scripts/purge-admin-attendance.js",
     "db:migrate-invitation-email-status": "node src/scripts/migrate-invitation-email-status.js",
-    "email:smoke": "node src/scripts/email-smoke.js"
+    "email:smoke": "node src/scripts/email-smoke.js",
+    "repair:users": "node src/scripts/repair-seeded-users.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

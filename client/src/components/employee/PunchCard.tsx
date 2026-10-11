@@ -18,7 +18,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { StatusBadge } from '../common/StatusBadge';
 import { CameraCapture } from './CameraCapture';
 import { usePunchCard } from '../../features/attendance/usePunchCard';
-import { useAppSelector } from '../../app/hooks';
+import { useAuth } from '../../features/auth/useAuth';
 import type { Attendance } from '../../types/models';
 
 interface PunchCardProps {
@@ -32,7 +32,7 @@ export const PunchCard: React.FC<PunchCardProps> = ({
   isLoading = false,
   onRequestOvertime,
 }) => {
-  const user = useAppSelector((state) => state.auth.user);
+  const { user } = useAuth();
 
   const {
     currentTime,

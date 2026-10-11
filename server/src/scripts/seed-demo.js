@@ -39,6 +39,11 @@ export const seedDemo = async () => {
         accountStatus: "active",
       });
       logger.info("Created Demo Admin: demo.admin@example.com");
+    } else if (admin.accountStatus !== "active" || !admin.isActive) {
+      admin.accountStatus = "active";
+      admin.isActive = true;
+      await admin.save();
+      logger.info("Repaired Demo Admin to active status: demo.admin@example.com");
     }
 
     // 2. Create 2 Managers
@@ -54,6 +59,11 @@ export const seedDemo = async () => {
         accountStatus: "active",
       });
       logger.info("Created Demo Manager 1: manager.sarah@example.com");
+    } else if (manager1.accountStatus !== "active" || !manager1.isActive) {
+      manager1.accountStatus = "active";
+      manager1.isActive = true;
+      await manager1.save();
+      logger.info("Repaired Demo Manager 1 to active status: manager.sarah@example.com");
     }
 
     let manager2 = await User.findOne({ email: "manager.david@example.com" });
@@ -68,6 +78,11 @@ export const seedDemo = async () => {
         accountStatus: "active",
       });
       logger.info("Created Demo Manager 2: manager.david@example.com");
+    } else if (manager2.accountStatus !== "active" || !manager2.isActive) {
+      manager2.accountStatus = "active";
+      manager2.isActive = true;
+      await manager2.save();
+      logger.info("Repaired Demo Manager 2 to active status: manager.david@example.com");
     }
 
     // 3. Create 6 Employees (3 per manager)
@@ -118,6 +133,11 @@ export const seedDemo = async () => {
           accountStatus: "active",
         });
         logger.info(`Created Demo Employee: ${emp.email}`);
+      } else if (user.accountStatus !== "active" || !user.isActive) {
+        user.accountStatus = "active";
+        user.isActive = true;
+        await user.save();
+        logger.info(`Repaired Demo Employee to active status: ${emp.email}`);
       }
       employees.push(user);
     }

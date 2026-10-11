@@ -17,10 +17,17 @@ export const seedAdmin = async () => {
     const adminName = (env.ADMIN_NAME || 'System Administrator').trim();
     const adminPassword = env.ADMIN_PASSWORD || 'AdminPassword123';
 
-    // 1. Idempotency check: if admin email already exists, do nothing
+    // 1. Idempotency check: if admin email already exists, ensure active and return
     const existing = await User.findOne({ email: adminEmail });
     if (existing) {
-      logger.info(`Admin user with email ${adminEmail} already exists. Skipping.`);
+      if (existing.accountStatus !== 'active' || !existing.isActive) {
+        existing.accountStatus = 'active';
+        existing.isActive = true;
+        await existing.save();
+        logger.info(`Updated existing admin user ${adminEmail} to active.`);
+      } else {
+        logger.info(`Admin user with email ${adminEmail} already exists. Skipping.`);
+      }
       await disconnectDB();
       return;
     }

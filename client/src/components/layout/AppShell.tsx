@@ -15,9 +15,9 @@ import {
   Calendar,
   Bell as BellIcon,
 } from 'lucide-react';
-import { useAppDispatch, useAppSelector } from '../../app/hooks';
+import { useAppDispatch } from '../../app/hooks';
 import { useLogoutMutation } from '../../features/auth/authApi';
-import { logoutUser } from '../../features/auth/authSlice';
+import { useAuth } from '../../features/auth/useAuth';
 import { apiSlice, setIntentionalLogout } from '../../features/api/apiSlice';
 import { Button } from '../ui/button';
 import { NotificationBell } from '../notifications/NotificationBell';
@@ -184,7 +184,7 @@ const NavSectionGroup: React.FC<{
 export const AppShell: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
-  const user = useAppSelector((state) => state.auth.user);
+  const { user } = useAuth();
   const dispatch = useAppDispatch();
   const location = useLocation();
   const navigate = useNavigate();
@@ -202,7 +202,6 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({
       // Ignored
     } finally {
       dispatch(apiSlice.util.resetApiState());
-      dispatch(logoutUser());
       navigate('/login');
       setTimeout(() => setIntentionalLogout(false), 500);
     }

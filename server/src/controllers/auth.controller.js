@@ -3,6 +3,7 @@ import {
   loginUser,
   createSocketToken,
   getSessionCookieOptions,
+  getClearCookieOptions,
 } from '../services/auth.service.js';
 import { sendSuccess } from '../utils/response.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
@@ -20,11 +21,7 @@ export const login = asyncHandler(async (req, res) => {
 });
 
 export const logout = asyncHandler(async (_req, res) => {
-  res.clearCookie('token', {
-    httpOnly: true,
-    sameSite: 'lax',
-    path: '/',
-  });
+  res.clearCookie('token', getClearCookieOptions());
   return sendSuccess(res, { message: 'Logged out successfully' }, 200);
 });
 

@@ -63,8 +63,14 @@ const baseQueryWithReauth: BaseQueryFn<
     const pathname = typeof window !== 'undefined' ? window.location?.pathname : '';
     const isOnAuthPage = pathname === '/login' || pathname === '/signup' || pathname === '/accept-invitation';
 
-    const state = api.getState() as { auth?: { isAuthenticated?: boolean } };
-    const wasAuthenticated = Boolean(state.auth?.isAuthenticated);
+    const state = api.getState() as {
+      api?: { queries?: Record<string, { status?: string; data?: unknown }> };
+      auth?: { isAuthenticated?: boolean };
+    };
+    const meQuery = state?.api?.queries?.['getMe(undefined)'];
+    const wasAuthenticated =
+      (meQuery?.status === 'fulfilled' && Boolean(meQuery?.data)) ||
+      Boolean(state?.auth?.isAuthenticated);
 
     // If intentional logout or on login/signup page or probing auth, suppress any session-expired alerts
     if (!isLoginOrAuthPath && !isIntentionalLogout && !isOnAuthPage && wasAuthenticated) {

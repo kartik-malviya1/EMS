@@ -300,4 +300,104 @@ describe('Authentication & RBAC', () => {
       expect(res.body.success).toBe(true);
     });
   });
+
+  describe('Session Restoration & Authentication Regression Tests', () => {
+    it('login then /auth/me with cookie returns the user for employee, manager and admin', async () => {
+      const password = 'Password123!';
+      const passwordHash = await User.hashPassword(password);
+
+      const accounts = [
+        { name: 'Admin Test', email: 'reg.admin@example.com', role: ROLES.ADMIN },
+        { name: 'Manager Test', email: 'reg.manager@example.com', role: ROLES.MANAGER },
+        { name: 'Employee Test', email: 'reg.employee@example.com', role: ROLES.EMPLOYEE },
+      ];
+
+      for (const acc of accounts) {
+        await User.create({
+          name: acc.name,
+          email: acc.email,
+          passwordHash,
+          role: acc.role,
+          isActive: true,
+          accountStatus: 'active',
+        });
+
+        // 1. Login
+        const loginRes = await request(app)
+          .post('/api/auth/login')
+          .send({ email: acc.email, password });
+
+        expect(loginRes.status).toBe(200);
+        expect(loginRes.body.success).toBe(true);
+
+        const cookie = loginRes.headers['set-cookie'];
+        expect(cookie).toBeDefined();
+
+        // 2. GET /auth/me with cookie
+        const meRes = await request(app)
+          .get('/api/auth/me')
+          .set('Cookie', cookie);
+
+        expect(meRes.status).toBe(200);
+        expect(meRes.body.success).toBe(true);
+        expect(meRes.body.data.email).toBe(acc.email);
+        expect(meRes.body.data.role).toBe(acc.role);
+        expect(meRes.body.data.accountStatus).toBe('active');
+        expect(meRes.body.data.isActive).toBe(true);
+      }
+    });
+
+    it('seeded-style user authenticates and verifies session', async () => {
+      const password = 'DemoPassword123';
+      const passwordHash = await User.hashPassword(password);
+
+      const seededUser = await User.create({
+        name: 'Seeded Employee',
+        email: 'seeded.emp@example.com',
+        passwordHash,
+        role: ROLES.EMPLOYEE,
+        managerId: null,
+        isActive: true,
+        accountStatus: 'active',
+      });
+
+      const loginRes = await request(app)
+        .post('/api/auth/login')
+        .send({ email: 'seeded.emp@example.com', password });
+
+      expect(loginRes.status).toBe(200);
+      expect(loginRes.body.success).toBe(true);
+      expect((loginRes.body.data._id || loginRes.body.data.id).toString()).toBe(seededUser._id.toString());
+
+      const meRes = await request(app)
+        .get('/api/auth/me')
+        .set('Cookie', loginRes.headers['set-cookie']);
+
+      expect(meRes.status).toBe(200);
+      expect(meRes.body.data.email).toBe('seeded.emp@example.com');
+      expect(meRes.body.data.accountStatus).toBe('active');
+    });
+
+    it('missing or short JWT_SECRET fails fast with configuration error and no random fallback', async () => {
+      const { validateEnv } = await import('../config/env.js');
+
+      // Missing JWT_SECRET
+      expect(() => {
+        validateEnv({
+          ...process.env,
+          MONGODB_URI: 'mongodb://localhost:27017/test',
+          JWT_SECRET: '',
+        });
+      }).toThrow(/Invalid environment configuration/i);
+
+      // Short JWT_SECRET (<32 chars)
+      expect(() => {
+        validateEnv({
+          ...process.env,
+          MONGODB_URI: 'mongodb://localhost:27017/test',
+          JWT_SECRET: 'too_short_secret_123',
+        });
+      }).toThrow(/Invalid environment configuration/i);
+    });
+  });
 });

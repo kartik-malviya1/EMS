@@ -36,6 +36,14 @@ export const authApi = apiSlice.injectEndpoints({
       }),
       transformResponse: (response: ApiResponse<User | { user: User }>) =>
         'user' in response.data ? response.data.user : response.data,
+      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
+        try {
+          const { data } = await queryFulfilled;
+          dispatch(authApi.util.upsertQueryData('getMe', undefined, data));
+        } catch {
+          // ignore
+        }
+      },
       invalidatesTags: ['Me', 'Today', 'Attendance', 'Dashboard', 'Notification'],
     }),
 
@@ -47,6 +55,14 @@ export const authApi = apiSlice.injectEndpoints({
       }),
       transformResponse: (response: ApiResponse<User | { user: User }>) =>
         'user' in response.data ? response.data.user : response.data,
+      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
+        try {
+          const { data } = await queryFulfilled;
+          dispatch(authApi.util.upsertQueryData('getMe', undefined, data));
+        } catch {
+          // ignore
+        }
+      },
       invalidatesTags: ['Me'],
     }),
 
@@ -55,6 +71,14 @@ export const authApi = apiSlice.injectEndpoints({
         url: '/auth/logout',
         method: 'POST',
       }),
+      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
+        try {
+          await queryFulfilled;
+          dispatch(apiSlice.util.resetApiState());
+        } catch {
+          // ignore
+        }
+      },
       invalidatesTags: ['Me', 'Today', 'Attendance', 'Dashboard', 'Notification'],
     }),
 

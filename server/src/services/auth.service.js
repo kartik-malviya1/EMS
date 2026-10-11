@@ -39,6 +39,11 @@ export const getSessionCookieOptions = () => ({
   maxAge: 12 * 60 * 60 * 1000, // 12 hours
 });
 
+export const getClearCookieOptions = () => {
+  const { maxAge: _unused, ...clearOpts } = getSessionCookieOptions();
+  return clearOpts;
+};
+
 export const signupUser = async ({ name, email, password, invitationToken, req }) => {
   // If an invitation token is supplied, accept invitation and activate account
   if (invitationToken) {

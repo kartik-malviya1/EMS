@@ -8,8 +8,7 @@ import {
   type LoginFormValues,
 } from '../validators/auth.validator';
 import { useLoginMutation } from '../features/auth/authApi';
-import { useAppDispatch } from '../app/hooks';
-import { setCredentials } from '../features/auth/authSlice';
+import { getRoleDefaultPath } from '../routes/roleUtils';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { PasswordInput } from '../components/ui/password-input';
@@ -19,7 +18,6 @@ import { ThemeToggle } from '../components/layout/ThemeToggle';
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const dispatch = useAppDispatch();
   const [loginMutation, { isLoading }] = useLoginMutation();
   const [serverError, setServerError] = useState<string | null>(null);
 
@@ -40,9 +38,21 @@ export const LoginPage: React.FC = () => {
     try {
       setServerError(null);
       const user = await loginMutation(values).unwrap();
-      dispatch(setCredentials({ user }));
-      const fromPath = location.state?.from?.pathname || '/';
-      navigate(fromPath, { replace: true });
+      const fromState = (location.state as { from?: { pathname?: string; search?: string; hash?: string } | string })?.from;
+      let targetPath = '';
+      if (typeof fromState === 'string' && fromState && fromState !== '/login' && fromState !== '/signup') {
+        targetPath = fromState;
+      } else if (
+        typeof fromState === 'object' &&
+        fromState?.pathname &&
+        fromState.pathname !== '/login' &&
+        fromState.pathname !== '/signup'
+      ) {
+        targetPath = `${fromState.pathname}${fromState.search || ''}${fromState.hash || ''}`;
+      } else {
+        targetPath = getRoleDefaultPath(user.role);
+      }
+      navigate(targetPath, { replace: true });
     } catch (err: unknown) {
       const errorPayload = err as {
         status?: number | string;
