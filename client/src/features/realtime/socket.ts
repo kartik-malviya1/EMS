@@ -158,6 +158,11 @@ export async function connectSocket(): Promise<Socket | null> {
 
       const n = payload?.notification;
       if (n) {
+        if (n.type === "invitation_accepted") {
+          store.dispatch(
+            apiSlice.util.invalidateTags(["User", "Invitation", "Dashboard"])
+          );
+        }
         toast.info(n.title, {
           description: n.message,
           duration: 6000,

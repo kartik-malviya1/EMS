@@ -398,14 +398,14 @@ describe('Edge-Case Hardening & Administrative-Only Matrix (17 Cases)', () => {
         workingStatus: WORKING_STATUS.IN_PROGRESS,
       });
 
-      // Promote to admin
+      // Admin accounts cannot be granted via API (400 CANNOT_MODIFY_ADMIN_ROLE)
       const promoteRes = await request(app)
         .patch(`/api/users/${employee1._id}`)
         .set('Cookie', adminCookie)
         .send({ role: ROLES.ADMIN });
 
-      expect(promoteRes.status).toBe(409);
-      expect(promoteRes.body.error.code).toBe('OPEN_SHIFT');
+      expect(promoteRes.status).toBe(400);
+      expect(promoteRes.body.error.code).toBe('CANNOT_MODIFY_ADMIN_ROLE');
 
       // Deactivate
       const deactRes = await request(app)

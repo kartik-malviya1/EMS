@@ -16,6 +16,7 @@ import { EmployeeLeavePage } from "./pages/employee/EmployeeLeavePage";
 
 // Manager Pages
 import { ManagerDashboardPage } from "./pages/manager/ManagerDashboardPage";
+import { ManagerTeamPage } from "./pages/manager/ManagerTeamPage";
 import { ManagerTeamAttendancePage } from "./pages/manager/ManagerTeamAttendancePage";
 import { ManagerReviewPage } from "./pages/manager/ManagerReviewPage";
 import { ManagerOvertimePage } from "./pages/manager/ManagerOvertimePage";
@@ -95,6 +96,14 @@ export function App() {
               element={
                 <ProtectedRoute allowedRoles={["manager"]}>
                   <ManagerDashboardPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/manager/team"
+              element={
+                <ProtectedRoute allowedRoles={["manager"]}>
+                  <ManagerTeamPage />
                 </ProtectedRoute>
               }
             />

@@ -260,14 +260,15 @@ export const AdminUsersPage: React.FC = () => {
             >
               <div className="border border-border/70 rounded-2xl bg-card overflow-hidden shadow-xs">
                 <div className="overflow-x-auto">
-                  <table className="w-full text-xs text-left table-fixed min-w-[940px] border-collapse">
+                  <table className="w-full text-xs text-left table-fixed min-w-[980px] border-collapse">
                     <colgroup>
-                      <col className="w-[240px]" />
-                      <col className="w-[120px]" />
-                      <col className="w-[170px]" />
-                      <col className="w-[170px]" />
-                      <col className="w-[130px]" />
-                      <col className="w-[90px]" />
+                      <col className="w-[230px]" />
+                      <col className="w-[110px]" />
+                      <col className="w-[160px]" />
+                      <col className="w-[150px]" />
+                      <col className="w-[140px]" />
+                      <col className="w-[110px]" />
+                      <col className="w-[80px]" />
                     </colgroup>
                     <thead className="bg-muted/40 border-b border-border/60 text-muted-foreground uppercase tracking-wider font-bold text-[11px] h-11">
                       <tr>
@@ -275,6 +276,7 @@ export const AdminUsersPage: React.FC = () => {
                         <th className="py-3 px-4 font-bold align-middle">Role</th>
                         <th className="py-3 px-4 font-bold align-middle">Dept / Designation</th>
                         <th className="py-3 px-4 font-bold align-middle">Reporting Manager</th>
+                        <th className="py-3 px-4 font-bold align-middle">Invited By</th>
                         <th className="py-3 px-4 font-bold align-middle">Status</th>
                         <th className="py-3 px-4 font-bold align-middle text-right">Action</th>
                       </tr>
@@ -282,7 +284,7 @@ export const AdminUsersPage: React.FC = () => {
                     <tbody className="divide-y divide-border/50">
                       {users.map((u) => {
                         const manager =
-                          typeof u.managerId === 'object' && u.managerId !== null
+                            typeof u.managerId === 'object' && u.managerId !== null
                             ? (u.managerId as User)
                             : null;
                         const uId = u.id || u._id;
@@ -310,12 +312,26 @@ export const AdminUsersPage: React.FC = () => {
                             <td className="py-2.5 px-4 align-middle text-muted-foreground">
                               {u.role === 'employee' ? (
                                 manager ? (
-                                  <span className="font-medium text-foreground truncate block max-w-[150px]" title={manager.name}>
+                                  <span className="font-medium text-foreground truncate block max-w-[140px]" title={manager.name}>
                                     {manager.name}
                                   </span>
                                 ) : (
                                   <span className="italic text-muted-foreground/70">None assigned</span>
                                 )
+                              ) : (
+                                <span className="text-muted-foreground/50">—</span>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-4 align-middle text-muted-foreground">
+                              {u.invitedBy ? (
+                                <div>
+                                  <div className="font-medium text-foreground truncate max-w-[130px]" title={u.invitedBy.name || undefined}>
+                                    {u.invitedBy.name || 'Invited'}
+                                  </div>
+                                  <div className="text-[10px] text-muted-foreground/70 capitalize">
+                                    {u.invitedBy.role || 'Admin'}
+                                  </div>
+                                </div>
                               ) : (
                                 <span className="text-muted-foreground/50">—</span>
                               )}

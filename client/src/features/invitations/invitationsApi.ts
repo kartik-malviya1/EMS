@@ -226,6 +226,92 @@ export const invitationsApi = apiSlice.injectEndpoints({
         response.data,
       invalidatesTags: ["Invitation", "User"],
     }),
+
+    getTeamInvitations: builder.query<InvitationsResponse, { status?: string; search?: string; page?: number; limit?: number } | void>({
+      query: (params) => ({
+        url: "/team/invitations",
+        params: params || {},
+      }),
+      transformResponse: (response: {
+        data: Invitation[];
+        meta: {
+          page: number;
+          limit: number;
+          total: number;
+          totalPages: number;
+        };
+      }) => ({
+        data: response.data,
+        meta: response.meta,
+      }),
+      providesTags: ["Invitation"],
+    }),
+
+    createTeamInvitation: builder.mutation<
+      CreateInvitationResponse,
+      {
+        name: string;
+        email: string;
+        employeeId?: string;
+        department?: string;
+        designation?: string;
+        dateOfJoining?: string | null;
+      }
+    >({
+      query: (body) => ({
+        url: "/team/invitations",
+        method: "POST",
+        body,
+      }),
+      transformResponse: (response: { data: CreateInvitationResponse }) =>
+        response.data,
+      invalidatesTags: ["Invitation", "User"],
+    }),
+
+    resendTeamInvitation: builder.mutation<CreateInvitationResponse, string>({
+      query: (id) => ({
+        url: `/team/invitations/${id}/resend`,
+        method: "POST",
+      }),
+      transformResponse: (response: { data: CreateInvitationResponse }) =>
+        response.data,
+      invalidatesTags: ["Invitation"],
+    }),
+
+    revokeTeamInvitation: builder.mutation<Invitation, string>({
+      query: (id) => ({
+        url: `/team/invitations/${id}/revoke`,
+        method: "POST",
+      }),
+      transformResponse: (response: { data: Invitation }) => response.data,
+      invalidatesTags: ["Invitation"],
+    }),
+
+    checkTeamDelivery: builder.mutation<
+      {
+        id: string;
+        status: string;
+        providerMessageId: string;
+        lastEvent: string | null;
+        lastEventAt: string | null;
+      },
+      string
+    >({
+      query: (id) => ({
+        url: `/team/invitations/${id}/check-delivery`,
+        method: "POST",
+      }),
+      transformResponse: (response: {
+        data: {
+          id: string;
+          status: string;
+          providerMessageId: string;
+          lastEvent: string | null;
+          lastEventAt: string | null;
+        };
+      }) => response.data,
+      invalidatesTags: ["Invitation"],
+    }),
   }),
 });
 
@@ -242,4 +328,11 @@ export const {
   useLazyGetMessageStatusQuery,
   useValidateInvitationTokenMutation,
   useAcceptInvitationMutation,
+  useGetTeamInvitationsQuery,
+  useCreateTeamInvitationMutation,
+  useResendTeamInvitationMutation,
+  useRevokeTeamInvitationMutation,
+  useCheckTeamDeliveryMutation,
 } = invitationsApi;
+
+

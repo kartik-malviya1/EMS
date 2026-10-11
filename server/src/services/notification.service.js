@@ -400,6 +400,51 @@ export const notifyLeaveReviewed = async ({ leaveRequest, reviewer: _reviewer, s
   return doc;
 };
 
+/**
+ * Notify inviter and employee manager (if different) when an invitation is accepted.
+ * Never notifies the new user.
+ */
+export const notifyInvitationAccepted = async ({ invitation, user }) => {
+  const recipients = new Set();
+  const inviterId = invitation.invitedBy?._id
+    ? invitation.invitedBy._id.toString()
+    : invitation.invitedBy?.toString();
+  const managerId = user.managerId?._id
+    ? user.managerId._id.toString()
+    : user.managerId?.toString();
+  const newUserId = (user._id || user.id).toString();
+
+  if (inviterId && inviterId !== newUserId) {
+    recipients.add(inviterId);
+  }
+  if (managerId && managerId !== newUserId) {
+    recipients.add(managerId);
+  }
+
+  const title = 'Invitation Accepted';
+  const message = `${user.name} (${user.email}) has accepted the invitation and activated their account.`;
+
+  const createdDocs = [];
+  for (const recipientId of recipients) {
+    const doc = await Notification.create({
+      userId: recipientId,
+      type: NOTIFICATION_TYPES.INVITATION_ACCEPTED,
+      title,
+      message,
+      data: {
+        userId: user._id,
+        invitationId: invitation._id,
+        email: user.email,
+        role: user.role,
+      },
+    });
+    emitNotification(recipientId, doc);
+    createdDocs.push(doc);
+  }
+
+  return createdDocs;
+};
+
 export default {
   notifyVerificationReviewed,
   notifyOvertimeRequested,
@@ -409,8 +454,10 @@ export default {
   notifyAutoClose,
   notifyLeaveRequested,
   notifyLeaveReviewed,
+  notifyInvitationAccepted,
   listUserNotifications,
   getUnreadNotificationCount,
   markNotificationAsRead,
   markAllNotificationsAsRead,
 };
+

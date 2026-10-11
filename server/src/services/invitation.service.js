@@ -15,6 +15,7 @@ import {
   renderInvitationTemplate,
 } from './email/index.js';
 import { logAuditEvent } from './audit.service.js';
+import { notifyInvitationAccepted } from './notification.service.js';
 import { logger } from '../utils/logger.js';
 
 export const hashToken = (token) => {
@@ -36,35 +37,58 @@ export const buildInvitationUrl = (rawToken) => {
  * Converts Mongoose invitation document to safe public/admin representation.
  * Never includes raw tokens or token hashes.
  */
-export const toSafeInvitation = (inv) => ({
-  id: inv._id ? inv._id.toString() : inv.id,
-  userId: inv.userId,
-  email: inv.email,
-  name: inv.name,
-  role: inv.role,
-  employeeId: inv.employeeId,
-  department: inv.department,
-  designation: inv.designation,
-  status: inv.status,
-  emailDeliveryStatus: inv.emailDeliveryStatus,
-  emailProviderMessageId: inv.emailProviderMessageId || null,
-  emailLastEvent: inv.emailLastEvent || null,
-  emailLastEventAt: inv.emailLastEventAt || null,
-  emailAttempt: inv.emailAttempt || 0,
-  emailLastError: inv.emailLastError
-    ? {
-        code: inv.emailLastError.code,
-        message: inv.emailLastError.message,
-        at: inv.emailLastError.at,
-        outcomeUnknown: Boolean(inv.emailLastError.outcomeUnknown),
-      }
-    : null,
-  resendCount: inv.resendCount || 0,
-  lastSentAt: inv.lastSentAt,
-  expiresAt: inv.expiresAt,
-  createdAt: inv.createdAt,
-  updatedAt: inv.updatedAt,
-});
+export const toSafeInvitation = (inv) => {
+  let invitedByObj = null;
+  if (inv.invitedBy) {
+    if (typeof inv.invitedBy === 'object' && (inv.invitedBy._id || inv.invitedBy.id)) {
+      invitedByObj = {
+        id: (inv.invitedBy._id || inv.invitedBy.id).toString(),
+        name: inv.invitedBy.name || '',
+        role: inv.invitedBy.role || inv.invitedByRole || 'admin',
+      };
+    } else {
+      invitedByObj = {
+        id: inv.invitedBy.toString(),
+      };
+    }
+  }
+
+  const userIdVal = inv.userId?._id
+    ? inv.userId._id.toString()
+    : (inv.userId?.toString() || inv.userId);
+
+  return {
+    id: inv._id ? inv._id.toString() : inv.id,
+    userId: userIdVal,
+    email: inv.email,
+    name: inv.name,
+    role: inv.role,
+    employeeId: inv.employeeId,
+    department: inv.department,
+    designation: inv.designation,
+    invitedBy: invitedByObj,
+    invitedByRole: inv.invitedByRole || (invitedByObj?.role || 'admin'),
+    status: inv.status,
+    emailDeliveryStatus: inv.emailDeliveryStatus,
+    emailProviderMessageId: inv.emailProviderMessageId || null,
+    emailLastEvent: inv.emailLastEvent || null,
+    emailLastEventAt: inv.emailLastEventAt || null,
+    emailAttempt: inv.emailAttempt || 0,
+    emailLastError: inv.emailLastError
+      ? {
+          code: inv.emailLastError.code,
+          message: inv.emailLastError.message,
+          at: inv.emailLastError.at,
+          outcomeUnknown: Boolean(inv.emailLastError.outcomeUnknown),
+        }
+      : null,
+    resendCount: inv.resendCount || 0,
+    lastSentAt: inv.lastSentAt,
+    expiresAt: inv.expiresAt,
+    createdAt: inv.createdAt,
+    updatedAt: inv.updatedAt,
+  };
+};
 
 /**
  * Atomic send claim using sendingAt lease (30 seconds timeout).
@@ -121,7 +145,7 @@ export const createInvitation = async ({
 
   // Check if active user already exists
   const existingUser = await User.findOne({ email: normalizedEmail });
-  if (existingUser && existingUser.accountStatus === ACCOUNT_STATUS.ACTIVE) {
+  if (existingUser && existingUser.accountStatus !== ACCOUNT_STATUS.INVITED) {
     throw new ApiError(
       409,
       'USER_ALREADY_EXISTS',
@@ -221,6 +245,7 @@ export const createInvitation = async ({
     department: data.department?.trim() || '',
     designation: data.designation?.trim() || '',
     invitedBy: adminUser._id,
+    invitedByRole: adminUser.role || ROLES.ADMIN,
     tokenHash,
     status: INVITATION_STATUS.PENDING,
     expiresAt,
@@ -847,6 +872,12 @@ export const acceptInvitation = async ({ rawToken, password, req }) => {
     req,
   });
 
+  try {
+    await notifyInvitationAccepted({ invitation: updatedInvitation, user });
+  } catch (err) {
+    logger.error('Failed to emit invitation accepted notification:', err.message);
+  }
+
   return {
     success: true,
     message: 'Account activated successfully. You can now log in with your credentials.',
@@ -1041,3 +1072,414 @@ export const processSelfServiceInvitationRequest = async ({
     logger.error('Error during self-service invitation link processing:', err.message);
   }
 };
+
+/**
+ * Manager creates an invitation for an employee into their own team.
+ * Scope: Sets role 'employee', managerId = managerUser._id, invitedBy = managerUser._id, invitedByRole = 'manager'.
+ */
+export const createTeamInvitation = async ({
+  managerUser,
+  data,
+  req,
+  emailProvider = getEmailProvider(),
+}) => {
+  if (!isEmailConfigured()) {
+    throw new ApiError(
+      503,
+      'EMAIL_NOT_CONFIGURED',
+      'Email delivery is not configured. Configure RESEND_API_KEY and EMAIL_FROM to send invitations.'
+    );
+  }
+
+  // Caller must be an active manager
+  if (
+    managerUser.role !== ROLES.MANAGER ||
+    managerUser.accountStatus !== ACCOUNT_STATUS.ACTIVE ||
+    !managerUser.isActive
+  ) {
+    throw new ApiError(403, 'FORBIDDEN', 'Only active managers can invite team employees');
+  }
+
+  const normalizedEmail = data.email.toLowerCase().trim();
+
+  // 1. Check existing user record
+  const existingUser = await User.findOne({ email: normalizedEmail });
+
+  if (existingUser) {
+    // If user is already active, suspended, or deactivated
+    if (existingUser.accountStatus !== ACCOUNT_STATUS.INVITED) {
+      throw new ApiError(
+        409,
+        'EMAIL_ALREADY_EXISTS',
+        'A user with this email already exists. Ask an administrator.'
+      );
+    }
+
+    // If user is invited, but assigned to another manager or unassigned
+    const userManagerId = existingUser.managerId ? existingUser.managerId.toString() : null;
+    if (userManagerId !== managerUser._id.toString()) {
+      throw new ApiError(
+        409,
+        'EMAIL_ALREADY_EXISTS',
+        'A user with this email already exists. Ask an administrator.'
+      );
+    }
+
+    // User is invited AND in caller's own team: check for pending unexpired invitation
+    const existingPending = await Invitation.findOne({
+      email: normalizedEmail,
+      status: INVITATION_STATUS.PENDING,
+      expiresAt: { $gt: new Date() },
+    });
+
+    if (existingPending) {
+      throw new ApiError(
+        409,
+        'INVITATION_ALREADY_PENDING',
+        'A pending invitation already exists for this email address. Please resend or revoke it instead.'
+      );
+    }
+  } else {
+    // No existing user document: check if a pending unexpired invitation exists for this email
+    const pendingInv = await Invitation.findOne({
+      email: normalizedEmail,
+      status: INVITATION_STATUS.PENDING,
+      expiresAt: { $gt: new Date() },
+    });
+
+    if (pendingInv) {
+      const inviterId = pendingInv.invitedBy ? pendingInv.invitedBy.toString() : null;
+      if (inviterId === managerUser._id.toString()) {
+        throw new ApiError(
+          409,
+          'INVITATION_ALREADY_PENDING',
+          'A pending invitation already exists for this email address. Please resend or revoke it instead.'
+        );
+      } else {
+        throw new ApiError(
+          409,
+          'EMAIL_ALREADY_EXISTS',
+          'A user with this email already exists. Ask an administrator.'
+        );
+      }
+    }
+  }
+
+  // 2. Validate employeeId uniqueness if provided
+  if (data.employeeId && data.employeeId.trim()) {
+    const existingEmpId = await User.findOne({
+      employeeId: data.employeeId.trim(),
+      ...(existingUser ? { _id: { $ne: existingUser._id } } : {}),
+    });
+    if (existingEmpId) {
+      throw new ApiError(409, 'EMPLOYEE_ID_EXISTS', 'An employee with this Employee ID already exists');
+    }
+  }
+
+  // 3. Create or reuse stub user
+  let user = existingUser;
+  if (!user) {
+    user = await User.create({
+      name: data.name.trim(),
+      email: normalizedEmail,
+      role: ROLES.EMPLOYEE,
+      employeeId: data.employeeId?.trim() || undefined,
+      department: data.department?.trim() || '',
+      designation: data.designation?.trim() || '',
+      dateOfJoining: data.dateOfJoining ? new Date(data.dateOfJoining) : null,
+      managerId: managerUser._id,
+      accountStatus: ACCOUNT_STATUS.INVITED,
+      isActive: false,
+    });
+  } else {
+    user.name = data.name.trim();
+    user.role = ROLES.EMPLOYEE;
+    user.employeeId = data.employeeId?.trim() || user.employeeId;
+    user.department = data.department?.trim() || user.department;
+    user.designation = data.designation?.trim() || user.designation;
+    if (data.dateOfJoining !== undefined) {
+      user.dateOfJoining = data.dateOfJoining ? new Date(data.dateOfJoining) : null;
+    }
+    user.managerId = managerUser._id;
+    user.accountStatus = ACCOUNT_STATUS.INVITED;
+    user.isActive = false;
+    await user.save();
+  }
+
+  // 4. Token & Expiry
+  const rawToken = crypto.randomBytes(32).toString('hex');
+  const tokenHash = hashToken(rawToken);
+  const expiryHours = Number(env.INVITATION_EXPIRY_HOURS) || 72;
+  const expiresAt = new Date(Date.now() + expiryHours * 60 * 60 * 1000);
+
+  // Invalidate old pending invitations for this email
+  await Invitation.updateMany(
+    { email: normalizedEmail, status: INVITATION_STATUS.PENDING },
+    { status: INVITATION_STATUS.REVOKED, revokedAt: new Date() }
+  );
+
+  // 5. Create Invitation record
+  const invitation = await Invitation.create({
+    userId: user._id,
+    email: normalizedEmail,
+    name: data.name.trim(),
+    role: ROLES.EMPLOYEE,
+    employeeId: data.employeeId?.trim() || '',
+    department: data.department?.trim() || '',
+    designation: data.designation?.trim() || '',
+    invitedBy: managerUser._id,
+    invitedByRole: ROLES.MANAGER,
+    tokenHash,
+    status: INVITATION_STATUS.PENDING,
+    expiresAt,
+    lastSentAt: new Date(),
+    resendCount: 0,
+    emailDeliveryStatus: EMAIL_DELIVERY_STATUS.PENDING,
+    emailAttempt: 0,
+  });
+
+  const invitationUrl = buildInvitationUrl(rawToken);
+
+  // 6. Log audit
+  await logAuditEvent({
+    actor: managerUser,
+    action: AUDIT_ACTIONS.INVITATION_CREATED,
+    targetUser: user,
+    invitationId: invitation._id,
+    metadata: { role: ROLES.EMPLOYEE, expiresAt },
+    req,
+  });
+
+  // 7. Send email via claim concurrency
+  const claimed = await claimSend(invitation._id);
+  if (!claimed) {
+    throw new ApiError(409, 'SEND_IN_PROGRESS', 'An invitation email send is currently in progress.');
+  }
+
+  let providerResult;
+  try {
+    const template = renderInvitationTemplate({
+      name: data.name.trim(),
+      role: ROLES.EMPLOYEE,
+      adminName: managerUser.name,
+      invitationUrl,
+      expiresAt,
+    });
+
+    const attemptNumber = 1;
+    const idempotencyKey = `invitation:${invitation._id}:attempt:${attemptNumber}`;
+
+    providerResult = await emailProvider.send({
+      to: normalizedEmail,
+      subject: template.subject,
+      html: template.html,
+      text: template.text,
+      replyTo: env.EMAIL_REPLY_TO || undefined,
+      idempotencyKey,
+    });
+
+    if (providerResult.ok) {
+      invitation.emailDeliveryStatus = EMAIL_DELIVERY_STATUS.ACCEPTED;
+      invitation.emailProviderMessageId = providerResult.providerMessageId || null;
+      invitation.emailAttempt = attemptNumber;
+      invitation.lastSentAt = new Date();
+      invitation.emailLastError = null;
+      invitation.emailLastEvent = null;
+      invitation.emailLastEventAt = null;
+      await invitation.save();
+
+      await logAuditEvent({
+        actor: managerUser,
+        action: AUDIT_ACTIONS.INVITATION_EMAIL_ACCEPTED,
+        targetUser: user,
+        invitationId: invitation._id,
+        metadata: {
+          provider: env.EMAIL_PROVIDER,
+          messageId: providerResult.providerMessageId || null,
+        },
+        req,
+      });
+    } else {
+      invitation.emailDeliveryStatus = EMAIL_DELIVERY_STATUS.FAILED;
+      invitation.emailAttempt = attemptNumber;
+      invitation.emailLastError = {
+        code: providerResult.error?.code,
+        message: providerResult.error?.message,
+        at: new Date(),
+        outcomeUnknown: Boolean(providerResult.error?.outcomeUnknown),
+      };
+      await invitation.save();
+
+      await logAuditEvent({
+        actor: managerUser,
+        action: AUDIT_ACTIONS.INVITATION_EMAIL_FAILED,
+        targetUser: user,
+        invitationId: invitation._id,
+        metadata: {
+          error: providerResult.error?.code,
+        },
+        req,
+      });
+    }
+  } finally {
+    await clearSendClaim(invitation._id);
+  }
+
+  return {
+    invitation: toSafeInvitation(invitation),
+    user: {
+      id: user._id.toString(),
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      accountStatus: user.accountStatus,
+    },
+    email: {
+      status: invitation.emailDeliveryStatus,
+      providerMessageId: invitation.emailProviderMessageId || undefined,
+      error: invitation.emailLastError
+        ? {
+            code: invitation.emailLastError.code,
+            message: invitation.emailLastError.message,
+          }
+        : undefined,
+    },
+  };
+};
+
+/**
+ * List team invitations scoped to members whose CURRENT managerId equals the authenticated manager.
+ */
+export const listTeamInvitations = async ({
+  managerUser,
+  status,
+  search,
+  page = 1,
+  limit = 20,
+}) => {
+  const teamUsers = await User.find({ managerId: managerUser._id }).select('_id');
+  const teamUserIds = teamUsers.map((u) => u._id);
+
+  const query = { userId: { $in: teamUserIds } };
+
+  if (status) {
+    query.status = status;
+  }
+
+  if (search && search.trim()) {
+    const searchRegex = new RegExp(search.trim(), 'i');
+    query.$or = [{ name: searchRegex }, { email: searchRegex }, { employeeId: searchRegex }];
+  }
+
+  const pageNum = Math.max(1, parseInt(page, 10) || 1);
+  const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
+  const skip = (pageNum - 1) * limitNum;
+
+  const [invitations, total] = await Promise.all([
+    Invitation.find(query)
+      .populate('invitedBy', 'name email role')
+      .populate('userId', 'name email role accountStatus department designation employeeId managerId')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limitNum)
+      .lean(),
+    Invitation.countDocuments(query),
+  ]);
+
+  return {
+    invitations: invitations.map(toSafeInvitation),
+    meta: {
+      page: pageNum,
+      limit: limitNum,
+      total,
+      totalPages: Math.ceil(total / limitNum),
+    },
+  };
+};
+
+/**
+ * Get a single team invitation with dynamic scope verification.
+ */
+export const getTeamInvitationById = async ({ managerUser, id }) => {
+  const invitation = await Invitation.findById(id)
+    .populate('invitedBy', 'name email role')
+    .populate('userId', 'name email role accountStatus department designation employeeId managerId');
+
+  if (!invitation) {
+    throw new ApiError(404, 'NOT_FOUND', 'Invitation not found');
+  }
+
+  const targetManagerId = invitation.userId?.managerId?._id || invitation.userId?.managerId;
+  if (!targetManagerId || targetManagerId.toString() !== managerUser._id.toString()) {
+    throw new ApiError(404, 'NOT_FOUND', 'Invitation not found');
+  }
+
+  return toSafeInvitation(invitation);
+};
+
+/**
+ * Resend a team invitation with dynamic scope verification.
+ */
+export const resendTeamInvitation = async ({
+  managerUser,
+  invitationId,
+  req,
+  emailProvider = getEmailProvider(),
+}) => {
+  const invitation = await Invitation.findById(invitationId).populate('userId', 'managerId');
+  if (!invitation) {
+    throw new ApiError(404, 'NOT_FOUND', 'Invitation not found');
+  }
+
+  const targetManagerId = invitation.userId?.managerId?._id || invitation.userId?.managerId;
+  if (!targetManagerId || targetManagerId.toString() !== managerUser._id.toString()) {
+    throw new ApiError(404, 'NOT_FOUND', 'Invitation not found');
+  }
+
+  return resendInvitation({
+    adminUser: managerUser,
+    invitationId,
+    req,
+    emailProvider,
+  });
+};
+
+/**
+ * Revoke a team invitation with dynamic scope verification.
+ */
+export const revokeTeamInvitation = async ({ managerUser, invitationId, req }) => {
+  const invitation = await Invitation.findById(invitationId).populate('userId', 'managerId');
+  if (!invitation) {
+    throw new ApiError(404, 'NOT_FOUND', 'Invitation not found');
+  }
+
+  const targetManagerId = invitation.userId?.managerId?._id || invitation.userId?.managerId;
+  if (!targetManagerId || targetManagerId.toString() !== managerUser._id.toString()) {
+    throw new ApiError(404, 'NOT_FOUND', 'Invitation not found');
+  }
+
+  return revokeInvitation({
+    adminUser: managerUser,
+    invitationId,
+    req,
+  });
+};
+
+/**
+ * Check delivery of a team invitation with dynamic scope verification.
+ */
+export const checkTeamInvitationDelivery = async ({ managerUser, invitationId }) => {
+  const invitation = await Invitation.findById(invitationId).populate('userId', 'managerId');
+  if (!invitation) {
+    throw new ApiError(404, 'NOT_FOUND', 'Invitation not found');
+  }
+
+  const targetManagerId = invitation.userId?.managerId?._id || invitation.userId?.managerId;
+  if (!targetManagerId || targetManagerId.toString() !== managerUser._id.toString()) {
+    throw new ApiError(404, 'NOT_FOUND', 'Invitation not found');
+  }
+
+  return checkInvitationDelivery({ invitationId });
+};
+
+

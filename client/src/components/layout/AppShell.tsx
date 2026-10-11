@@ -83,6 +83,7 @@ const getNavSections = (role?: Role): NavSection[] => {
         title: 'MAIN',
         items: [
           { label: 'Team Overview', href: '/manager', icon: LayoutDashboard },
+          { label: 'My Team', href: '/manager/team', icon: Users },
           { label: 'Team Attendance', href: '/manager/attendance', icon: Calendar },
         ],
       },

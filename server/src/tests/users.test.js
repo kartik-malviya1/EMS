@@ -204,10 +204,10 @@ describe('User Management Endpoints & Rules', () => {
       const activeCount = await User.countDocuments({ role: ROLES.ADMIN, isActive: true });
       expect(activeCount).toBe(1);
 
-      // Attempting to demote or deactivate the last remaining admin throws 409 CANNOT_MODIFY_LAST_ADMIN
+      // Attempting to deactivate the last remaining admin throws 409 CANNOT_MODIFY_LAST_ADMIN
       let caughtError;
       try {
-        await updateUserService(admin2, admin1._id, { role: ROLES.EMPLOYEE });
+        await updateUserService(admin2, admin1._id, { isActive: false });
       } catch (err) {
         caughtError = err;
       }

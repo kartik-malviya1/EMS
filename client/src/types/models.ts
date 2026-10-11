@@ -29,6 +29,21 @@ export interface User {
   accountStatus?: AccountStatus;
   managerId?: string | User | null;
   isActive: boolean;
+  invitedBy?: {
+    id: string;
+    name?: string;
+    role?: string;
+  } | null;
+  invitationSummary?: {
+    id: string;
+    status: InvitationStatus;
+    emailDeliveryStatus?: EmailDeliveryStatus;
+    expiresAt?: string;
+    lastSentAt?: string;
+    resendCount?: number;
+    emailLastEvent?: string | null;
+  } | null;
+  statusLabel?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -43,7 +58,8 @@ export interface Invitation {
   employeeId?: string;
   department?: string;
   designation?: string;
-  invitedBy?: string | User;
+  invitedBy?: string | User | { id: string; name?: string; role?: string } | null;
+  invitedByRole?: 'admin' | 'manager';
   status: InvitationStatus;
   expiresAt: string;
   acceptedAt?: string | null;

@@ -67,7 +67,6 @@ const UserEditForm: React.FC<UserEditFormProps> = ({
       } = {
         id: userId,
         name: name.trim() || undefined,
-        role,
         employeeId: employeeId.trim() || undefined,
         department: department.trim() || undefined,
         designation: designation.trim() || undefined,
@@ -75,10 +74,13 @@ const UserEditForm: React.FC<UserEditFormProps> = ({
         isActive: accountStatus === 'active',
       };
 
-      if (role === 'employee') {
-        payload.managerId = managerId || null;
-      } else {
-        payload.managerId = null;
+      if (user.role !== 'admin') {
+        payload.role = role;
+        if (role === 'employee') {
+          payload.managerId = managerId || null;
+        } else {
+          payload.managerId = null;
+        }
       }
 
       await updateUser(payload).unwrap();
@@ -102,9 +104,13 @@ const UserEditForm: React.FC<UserEditFormProps> = ({
 
       if (code === 'HAS_TEAM_MEMBERS') {
         setErrorMessage(
-          'Cannot demote or deactivate this manager because they have assigned active team members. Please reassign their team members first.'
+          'Cannot demote or deactivate this manager because they have assigned team members. Please reassign their team members first.'
         );
-      } else if (code === 'CANNOT_DEMOTE_LAST_ADMIN') {
+      } else if (code === 'CANNOT_MODIFY_ADMIN_ROLE') {
+        setErrorMessage(
+          'Administrator roles cannot be granted or removed via the API.'
+        );
+      } else if (code === 'CANNOT_DEMOTE_LAST_ADMIN' || code === 'CANNOT_MODIFY_LAST_ADMIN') {
         setErrorMessage(
           'Cannot demote or deactivate the last active administrator in the system.'
         );
@@ -151,22 +157,27 @@ const UserEditForm: React.FC<UserEditFormProps> = ({
           <Label htmlFor="edit-role" className="text-xs font-semibold">
             System Role
           </Label>
-          <select
-            id="edit-role"
-            value={role}
-            onChange={(e) => {
-              const newRole = e.target.value as Role;
-              setRole(newRole);
-              if (newRole !== 'employee') {
-                setManagerId('');
-              }
-            }}
-            className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-          >
-            <option value="employee">Employee</option>
-            <option value="manager">Manager</option>
-            <option value="admin">Administrator</option>
-          </select>
+          {user.role === 'admin' ? (
+            <div className="mt-1 px-3 py-2 rounded-md border border-input bg-muted/40 text-xs font-semibold text-muted-foreground">
+              Administrator (Role cannot be modified via API)
+            </div>
+          ) : (
+            <select
+              id="edit-role"
+              value={role}
+              onChange={(e) => {
+                const newRole = e.target.value as Role;
+                setRole(newRole);
+                if (newRole !== 'employee') {
+                  setManagerId('');
+                }
+              }}
+              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+            >
+              <option value="employee">Employee</option>
+              <option value="manager">Manager</option>
+            </select>
+          )}
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

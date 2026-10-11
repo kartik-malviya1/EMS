@@ -14,7 +14,7 @@ export const getUsers = asyncHandler(async (req, res) => {
 });
 
 export const getTeam = asyncHandler(async (req, res) => {
-  const members = await listTeamMembers(req.user._id);
+  const members = await listTeamMembers(req.user._id, req.query);
   return sendSuccess(res, members, 200);
 });
 

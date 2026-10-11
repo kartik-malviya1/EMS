@@ -56,8 +56,11 @@ export const usersApi = apiSlice.injectEndpoints({
           : ['User'],
     }),
 
-    getTeamUsers: builder.query<User[], void>({
-      query: () => '/users/team',
+    getTeamUsers: builder.query<User[], { status?: string } | void>({
+      query: (params) => ({
+        url: '/users/team',
+        params: params || {},
+      }),
       transformResponse: (response: ApiResponse<User[]>) => response.data,
       providesTags: ['User'],
     }),
