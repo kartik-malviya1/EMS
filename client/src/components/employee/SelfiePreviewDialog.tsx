@@ -27,8 +27,11 @@ export const SelfiePreviewDialog: React.FC<SelfiePreviewDialogProps> = ({
   if (!attendance) return null;
 
   const attendanceId = attendance.id || attendance._id;
-  const punchInSelfieUrl = `${getBaseUrl()}/attendance/${attendanceId}/selfies/punch-in`;
-  const punchOutSelfieUrl = `${getBaseUrl()}/attendance/${attendanceId}/selfies/punch-out`;
+  const token =
+    typeof window !== 'undefined' ? localStorage.getItem('ems_token') : null;
+  const tokenParam = token ? `?token=${encodeURIComponent(token)}` : '';
+  const punchInSelfieUrl = `${getBaseUrl()}/attendance/${attendanceId}/selfies/punch-in${tokenParam}`;
+  const punchOutSelfieUrl = `${getBaseUrl()}/attendance/${attendanceId}/selfies/punch-out${tokenParam}`;
 
   const formatCoords = (lat?: number, lng?: number) => {
     if (lat === undefined || lng === undefined) return null;
@@ -74,6 +77,7 @@ export const SelfiePreviewDialog: React.FC<SelfiePreviewDialogProps> = ({
               ) : (
                 <img
                   src={punchInSelfieUrl}
+                  crossOrigin="use-credentials"
                   alt="Punch In Selfie"
                   className="w-full h-full object-cover"
                   onError={() => setPunchInImgError(true)}
@@ -138,6 +142,7 @@ export const SelfiePreviewDialog: React.FC<SelfiePreviewDialogProps> = ({
               ) : (
                 <img
                   src={punchOutSelfieUrl}
+                  crossOrigin="use-credentials"
                   alt="Punch Out Selfie"
                   className="w-full h-full object-cover"
                   onError={() => setPunchOutImgError(true)}

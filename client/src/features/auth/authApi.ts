@@ -1,4 +1,5 @@
 import { apiSlice } from '../api/apiSlice';
+import { setCredentials, logoutUser } from './authSlice';
 import type { ApiResponse, User } from '../../types/models';
 
 export interface LoginRequest {
@@ -14,6 +15,7 @@ export interface SignupRequest {
 
 export interface AuthResponse {
   user: User;
+  token?: string;
 }
 
 export interface SocketTokenResponse {
@@ -25,6 +27,16 @@ export const authApi = apiSlice.injectEndpoints({
     getMe: builder.query<User, void>({
       query: () => '/auth/me',
       transformResponse: (response: ApiResponse<User>) => response.data,
+      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
+        try {
+          const { data } = await queryFulfilled;
+          if (data) {
+            dispatch(setCredentials({ user: data }));
+          }
+        } catch {
+          // ignore
+        }
+      },
       providesTags: ['Me'],
     }),
 
@@ -34,11 +46,22 @@ export const authApi = apiSlice.injectEndpoints({
         method: 'POST',
         body: credentials,
       }),
-      transformResponse: (response: ApiResponse<User | { user: User }>) =>
-        'user' in response.data ? response.data.user : response.data,
+      transformResponse: (
+        response: ApiResponse<User | { user: User; token?: string } | (User & { token?: string })>
+      ) => {
+        const raw = response.data as { user?: User; token?: string } & User;
+        const user: User = raw.user || raw;
+        const token: string | undefined = raw.token;
+        if (token && typeof window !== 'undefined') {
+          localStorage.setItem('ems_token', token);
+        }
+        return user;
+      },
       async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
         try {
           const { data } = await queryFulfilled;
+          const token = typeof window !== 'undefined' ? localStorage.getItem('ems_token') || undefined : undefined;
+          dispatch(setCredentials({ user: data, token }));
           dispatch(authApi.util.upsertQueryData('getMe', undefined, data));
         } catch {
           // ignore
@@ -53,11 +76,22 @@ export const authApi = apiSlice.injectEndpoints({
         method: 'POST',
         body: payload,
       }),
-      transformResponse: (response: ApiResponse<User | { user: User }>) =>
-        'user' in response.data ? response.data.user : response.data,
+      transformResponse: (
+        response: ApiResponse<User | { user: User; token?: string } | (User & { token?: string })>
+      ) => {
+        const raw = response.data as { user?: User; token?: string } & User;
+        const user: User = raw.user || raw;
+        const token: string | undefined = raw.token;
+        if (token && typeof window !== 'undefined') {
+          localStorage.setItem('ems_token', token);
+        }
+        return user;
+      },
       async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
         try {
           const { data } = await queryFulfilled;
+          const token = typeof window !== 'undefined' ? localStorage.getItem('ems_token') || undefined : undefined;
+          dispatch(setCredentials({ user: data, token }));
           dispatch(authApi.util.upsertQueryData('getMe', undefined, data));
         } catch {
           // ignore
@@ -74,6 +108,10 @@ export const authApi = apiSlice.injectEndpoints({
       async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
         try {
           await queryFulfilled;
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('ems_token');
+          }
+          dispatch(logoutUser());
           dispatch(apiSlice.util.resetApiState());
         } catch {
           // ignore

@@ -36,17 +36,25 @@ export const getBaseUrl = (): string => {
   }
   if (
     typeof window !== "undefined" &&
-    window.location?.origin &&
-    window.location.origin !== "null"
+    (window.location.hostname === "localhost" ||
+      window.location.hostname === "127.0.0.1")
   ) {
     return `${window.location.origin}/api`;
   }
-  return "/api";
+  return "https://ems-server.onrender.com/api";
 };
 
 const baseQuery = fetchBaseQuery({
   baseUrl: getBaseUrl(),
   credentials: "include",
+  prepareHeaders: (headers) => {
+    const token =
+      typeof window !== "undefined" ? localStorage.getItem("ems_token") : null;
+    if (token) {
+      headers.set("Authorization", `Bearer ${token}`);
+    }
+    return headers;
+  },
 });
 
 const baseQueryWithReauth: BaseQueryFn<
@@ -84,6 +92,9 @@ const baseQueryWithReauth: BaseQueryFn<
       !isOnAuthPage &&
       wasAuthenticated
     ) {
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("ems_token");
+      }
       api.dispatch(logoutUser());
       api.dispatch(apiSlice.util.resetApiState());
       notifySessionExpiredOnce();

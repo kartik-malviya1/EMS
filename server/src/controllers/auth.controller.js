@@ -18,13 +18,17 @@ import { logger } from '../utils/logger.js';
 export const signup = asyncHandler(async (req, res) => {
   const { user, token } = await signupUser(req.body);
   res.cookie('token', token, getSessionCookieOptions());
-  return sendSuccess(res, user, 201);
+  const userObj = user.toObject ? user.toObject() : { ...user };
+  delete userObj.passwordHash;
+  return sendSuccess(res, { ...userObj, user: userObj, token }, 201);
 });
 
 export const login = asyncHandler(async (req, res) => {
   const { user, token } = await loginUser(req.body);
   res.cookie('token', token, getSessionCookieOptions());
-  return sendSuccess(res, user, 200);
+  const userObj = user.toObject ? user.toObject() : { ...user };
+  delete userObj.passwordHash;
+  return sendSuccess(res, { ...userObj, user: userObj, token }, 200);
 });
 
 export const logout = asyncHandler(async (_req, res) => {

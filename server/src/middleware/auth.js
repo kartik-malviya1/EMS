@@ -13,6 +13,11 @@ export const authenticate = asyncHandler(async (req, _res, next) => {
     token = req.headers.authorization.split(' ')[1];
   }
 
+  // Fallback to query parameter for media streaming if cookie/header absent
+  if (!token && req.query?.token) {
+    token = req.query.token;
+  }
+
   if (!token) {
     throw new ApiError(401, 'UNAUTHENTICATED', 'Authentication required');
   }

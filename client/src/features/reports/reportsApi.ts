@@ -69,9 +69,16 @@ export async function downloadReportExport(
   if (params.to) query.set('to', params.to);
   if (params.userId) query.set('userId', params.userId);
 
+  const token = typeof window !== 'undefined' ? localStorage.getItem('ems_token') : null;
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
   const res = await fetch(`${getBaseUrl()}/reports/daily/export?${query.toString()}`, {
     method: 'GET',
     credentials: 'include',
+    headers,
   });
 
   if (!res.ok) {

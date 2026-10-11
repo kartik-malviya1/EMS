@@ -34,9 +34,16 @@ export function getSocketStatus(): SocketConnectionStatus {
 
 export async function fetchSocketToken(): Promise<string | null> {
   try {
+    const sessionToken =
+      typeof window !== "undefined" ? localStorage.getItem("ems_token") : null;
+    const headers: Record<string, string> = {};
+    if (sessionToken) {
+      headers["Authorization"] = `Bearer ${sessionToken}`;
+    }
     const res = await fetch(`${getBaseUrl()}/auth/socket-token`, {
       method: "GET",
       credentials: "include",
+      headers,
     });
     if (!res.ok) return null;
     const json = await res.json();
@@ -62,10 +69,14 @@ function getSocketUrl(): string {
       // ignore
     }
   }
-  if (typeof window !== "undefined" && window.location?.origin) {
-    return window.location.origin;
+  if (
+    typeof window !== "undefined" &&
+    (window.location.hostname === "localhost" ||
+      window.location.hostname === "127.0.0.1")
+  ) {
+    return "http://localhost:5000";
   }
-  return "http://localhost:5000";
+  return "https://ems-server.onrender.com";
 }
 
 export async function connectSocket(): Promise<Socket | null> {

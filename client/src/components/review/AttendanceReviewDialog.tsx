@@ -43,6 +43,9 @@ export const AttendanceReviewDialog: React.FC<AttendanceReviewDialogProps> = ({
   if (!attendance) return null;
 
   const attendanceId = attendance.id || attendance._id || '';
+  const token =
+    typeof window !== 'undefined' ? localStorage.getItem('ems_token') : null;
+  const tokenParam = token ? `?token=${encodeURIComponent(token)}` : '';
   const employee =
     typeof attendance.employeeId === 'object' && attendance.employeeId !== null
       ? (attendance.employeeId as User)
@@ -137,7 +140,8 @@ export const AttendanceReviewDialog: React.FC<AttendanceReviewDialogProps> = ({
               {/* Punch-In Photo */}
               <div className="aspect-video w-full rounded-lg overflow-hidden bg-muted/60 relative border border-border/60 flex items-center justify-center mb-3">
                 <img
-                  src={`${getBaseUrl()}/attendance/${attendanceId}/selfies/punch-in`}
+                  src={`${getBaseUrl()}/attendance/${attendanceId}/selfies/punch-in${tokenParam}`}
+                  crossOrigin="use-credentials"
                   alt="Punch-in selfie"
                   className="w-full h-full object-cover"
                   onError={(e) => {
@@ -234,7 +238,8 @@ export const AttendanceReviewDialog: React.FC<AttendanceReviewDialogProps> = ({
               <div className="aspect-video w-full rounded-lg overflow-hidden bg-muted/60 relative border border-border/60 flex items-center justify-center mb-3">
                 {attendance.punchOut ? (
                   <img
-                    src={`${getBaseUrl()}/attendance/${attendanceId}/selfies/punch-out`}
+                    src={`${getBaseUrl()}/attendance/${attendanceId}/selfies/punch-out${tokenParam}`}
+                    crossOrigin="use-credentials"
                     alt="Punch-out selfie"
                     className="w-full h-full object-cover"
                     onError={(e) => {
