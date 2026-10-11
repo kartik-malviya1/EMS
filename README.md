@@ -241,30 +241,76 @@ The Leave Management module allows employees and managers to request time off, a
 
 ---
 
-## Independent Deployment Instructions
+## Deployment Checklist
 
-### React Frontend (Vercel / Netlify)
+### 1. Vercel Frontend Configuration (`client`)
+- **Project Root Directory**: `client`
+- **Framework Preset**: `Vite`
+- **Build Command**: `npm run build`
+- **Output Directory**: `dist`
+- **Environment Variables**:
+  - `VITE_API_BASE_URL=/api` (uses relative `/api` path so all requests go through Vercel's proxy rewrite)
+  - `VITE_SOCKET_URL=https://ems-server.onrender.com` (backend root URL for real-time Socket.IO)
+- **`client/vercel.json`**:
+  Must contain the `/api/:path*` rewrite to the Render backend BEFORE the SPA `/(.*)` fallback:
+  ```json
+  {
+    "rewrites": [
+      {
+        "source": "/api/:path*",
+        "destination": "https://ems-server.onrender.com/api/:path*"
+      },
+      {
+        "source": "/(.*)",
+        "destination": "/"
+      }
+    ]
+  }
+  ```
 
-1. Set root directory to `client`.
-2. Build command: `npm run build`
-3. Output directory: `dist`
-4. Environment variables:
-   ```env
-   VITE_API_URL=https://your-backend-api.onrender.com/api
-   ```
+### 2. Render Backend Web Service (`server`)
+- **Repository Root Directory**: `server`
+- **Environment**: Node.js
+- **Build Command**: `npm install`
+- **Start Command**: `npm start`
+- **Health Check Path**: `/api/health`
+- **Environment Variables** *(names only, configure securely in Render dashboard)*:
+  - `NODE_ENV` (`production`)
+  - `PORT` (`5000`)
+  - `MONGODB_URI`
+  - `JWT_SECRET`
+  - `JWT_EXPIRES_IN`
+  - `CLIENT_ORIGIN` (e.g. `https://ems-client-sand.vercel.app`)
+  - `APP_BASE_URL` (e.g. `https://ems-client-sand.vercel.app`)
+  - `BUSINESS_TIMEZONE`
+  - `STANDARD_SHIFT_MINUTES`
+  - `WORKING_DAYS`
+  - `ENABLE_CRON`
+  - `EMAIL_PROVIDER`
+  - `RESEND_API_KEY`
+  - `EMAIL_FROM`
+  - `INVITATION_EXPIRY_HOURS`
+  - `ALLOW_PUBLIC_REGISTRATION`
+  - `CLOUDINARY_CLOUD_NAME`
+  - `CLOUDINARY_API_KEY`
+  - `CLOUDINARY_API_SECRET`
+  - `CLOUDINARY_FOLDER`
+  - `GEOFENCE_ENABLED`
+  - `GEOFENCE_RADIUS_METERS`
+  - `GEOFENCE_MAX_ACCURACY_METERS`
+  - `ADMIN_NAME`
+  - `ADMIN_EMAIL`
+  - `ADMIN_PASSWORD`
 
-### Express Backend (Render)
+---
 
-1. Set root directory to `server`.
-2. Build command: `npm install`
-3. Start command: `npm start`
-4. Environment variables:
-   ```env
-   NODE_ENV=production
-   PORT=5000
-   MONGODB_URI=mongodb+srv://...
-   JWT_SECRET=min_32_characters_random_secret_key
-   CLIENT_ORIGIN=https://your-frontend.vercel.app
-   APP_BASE_URL=https://your-frontend.vercel.app
-   RESEND_API_KEY=re_...
-   ```
+## Troubleshooting
+
+| Status Code | Cause | Resolution |
+|---|---|---|
+| **404 / 405 (on `/api/*`)** | **Vercel rewrite missing or misordered**: Vercel serves `index.html` or returns 405 Method Not Allowed for API POSTs because the rewrite to Render is missing or placed after the SPA fallback. | Verify `client/vercel.json` has `{"source": "/api/:path*", "destination": "https://ems-server.onrender.com/api/:path*"}` listed **before** `{"source": "/(.*)", "destination": "/"}`. Confirm Vercel Root Directory is `client`. |
+| **404 (on page refresh `/login`, `/admin`)** | **SPA rewrite missing**: Browser requests a physical file like `/login.html` on Vercel which does not exist. | Ensure `client/vercel.json` has the fallback rewrite `{"source": "/(.*)", "destination": "/"}` to let React Router handle client-side routing. |
+| **502 / 504** | **Render free tier asleep (cold start)**: Render spins down idle services after 15 minutes. Cold starts take 30–50 seconds, causing Vercel's proxy gateway to time out (504). | Open `https://ems-server.onrender.com/api/health` directly in a new browser tab to wake the Render instance, or configure a free ping monitor (e.g. UptimeRobot) targeting `/api/health` every 10 minutes. |
+| **403 BAD_ORIGIN** | **CORS / CSRF origin mismatch**: Non-GET/OPTIONS requests check the `Origin` header against `CLIENT_ORIGIN`. | Set `CLIENT_ORIGIN=https://ems-client-sand.vercel.app` (without trailing slash) in the Render environment settings. (The backend also automatically allows any `*.vercel.app` origin). |
+| **401 INVALID_CREDENTIALS / TOKEN_EXPIRED** | **Password mismatch or expired cookie**: Either the admin password in MongoDB differs from `.env`, or the 12-hour session expired. | Run `npm run seed:admin` on the backend to sync the admin password with `ADMIN_PASSWORD`. Ensure `trust proxy = 1` is active in production so cookies are preserved across Vercel proxy headers. |
+
