@@ -10,7 +10,7 @@ export const shouldBypassRateLimit = () => {
   if (process.env.TEST_ENABLE_RATE_LIMITS === 'true') {
     return false;
   }
-  return env.NODE_ENV === 'test';
+  return process.env.NODE_ENV === 'test' || env.NODE_ENV === 'test';
 };
 
 const wrapLimiter = (limiter) => (req, res, next) => {
@@ -56,6 +56,20 @@ export const loginLimiter = wrapLimiter(
 );
 
 export const punchLimiter = wrapLimiter(
+  rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 30,
+    standardHeaders: true,
+    legacyHeaders: false,
+    validate: { keyGeneratorIpFallback: false },
+    keyGenerator: (req) => {
+      return req.user?._id?.toString() || req.ip || 'unknown';
+    },
+    handler: rateLimitHandler,
+  })
+);
+
+export const adminInvitationSendLimiter = wrapLimiter(
   rateLimit({
     windowMs: 15 * 60 * 1000,
     limit: 30,

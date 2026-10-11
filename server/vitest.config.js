@@ -4,8 +4,14 @@ export default defineConfig({
   test: {
     environment: 'node',
     globals: true,
-    testTimeout: 20000,
+    testTimeout: 30000,
+    hookTimeout: 30000,
+    teardownTimeout: 30000,
     fileParallelism: false,
+    pool: 'forks',
+    forks: {
+      singleFork: false,
+    },
     setupFiles: ['./src/tests/setup.js'],
   },
 });

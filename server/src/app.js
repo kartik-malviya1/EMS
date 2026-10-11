@@ -17,6 +17,7 @@ import reportRoutes from './routes/report.routes.js';
 import dashboardRoutes from './routes/dashboard.routes.js';
 import settingsRoutes from './routes/settings.routes.js';
 import notificationRoutes from './routes/notification.routes.js';
+import invitationRoutes from './routes/invitation.routes.js';
 
 const app = express();
 
@@ -89,6 +90,9 @@ app.use('/api/settings', settingsRoutes);
 
 // Notifications endpoints
 app.use('/api/notifications', notificationRoutes);
+
+// Admin invitation endpoints
+app.use('/api/admin/invitations', invitationRoutes);
 
 // 404 handler
 app.use(notFound);

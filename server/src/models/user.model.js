@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
-import { ROLES, ROLE_LIST } from '../config/constants.js';
+import { ROLES, ROLE_LIST, ACCOUNT_STATUS, ACCOUNT_STATUS_LIST } from '../config/constants.js';
 
 const userSchema = new mongoose.Schema(
   {
@@ -21,7 +21,9 @@ const userSchema = new mongoose.Schema(
     },
     passwordHash: {
       type: String,
-      required: [true, 'Password hash is required'],
+      required: function () {
+        return this.accountStatus === ACCOUNT_STATUS.ACTIVE;
+      },
       select: false,
     },
     role: {
@@ -32,14 +34,45 @@ const userSchema = new mongoose.Schema(
       },
       default: ROLES.EMPLOYEE,
     },
+    employeeId: {
+      type: String,
+      trim: true,
+      sparse: true,
+      unique: true,
+      default: undefined,
+    },
     managerId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       default: null,
     },
+    department: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    designation: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    dateOfJoining: {
+      type: Date,
+      default: null,
+    },
+    accountStatus: {
+      type: String,
+      enum: {
+        values: ACCOUNT_STATUS_LIST,
+        message: '{VALUE} is not a valid account status',
+      },
+      default: ACCOUNT_STATUS.ACTIVE,
+      index: true,
+    },
     isActive: {
       type: Boolean,
       default: true,
+      index: true,
     },
   },
   {
@@ -61,9 +94,22 @@ const userSchema = new mongoose.Schema(
   }
 );
 
+// Synchronize accountStatus and isActive before save
+userSchema.pre('save', function () {
+  if (this.isModified('accountStatus')) {
+    this.isActive = this.accountStatus === ACCOUNT_STATUS.ACTIVE;
+  } else if (this.isModified('isActive')) {
+    if (!this.isActive && this.accountStatus === ACCOUNT_STATUS.ACTIVE) {
+      this.accountStatus = ACCOUNT_STATUS.DEACTIVATED;
+    } else if (this.isActive && this.accountStatus !== ACCOUNT_STATUS.ACTIVE) {
+      this.accountStatus = ACCOUNT_STATUS.ACTIVE;
+    }
+  }
+});
+
 userSchema.methods.comparePassword = async function (candidatePassword) {
   if (!this.passwordHash) {
-    throw new Error('passwordHash is not selected on user document');
+    return false;
   }
   return bcrypt.compare(candidatePassword, this.passwordHash);
 };

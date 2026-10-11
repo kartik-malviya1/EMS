@@ -3,7 +3,8 @@ import bcrypt from 'bcryptjs';
 import { env } from '../config/env.js';
 import { User } from '../models/user.model.js';
 import { ApiError } from '../utils/ApiError.js';
-import { ROLES } from '../config/constants.js';
+import { ROLES, ACCOUNT_STATUS } from '../config/constants.js';
+import { acceptInvitation } from './invitation.service.js';
 
 // Pre-computed dummy hash with cost 12 to perform dummy comparison on unknown emails
 const DUMMY_HASH = '$2a$12$e80y6fGq01nE47hF5389yeCjE4u1R7x7q/jF/oZzG1eO79r1Hw4bC';
@@ -38,7 +39,28 @@ export const getSessionCookieOptions = () => ({
   maxAge: 12 * 60 * 60 * 1000, // 12 hours
 });
 
-export const signupUser = async ({ name, email, password }) => {
+export const signupUser = async ({ name, email, password, invitationToken, req }) => {
+  // If an invitation token is supplied, accept invitation and activate account
+  if (invitationToken) {
+    const acceptance = await acceptInvitation({
+      rawToken: invitationToken,
+      password,
+      req,
+    });
+    const user = await User.findOne({ email: acceptance.email });
+    const token = createSessionToken(user._id);
+    return { user, token };
+  }
+
+  // Reject public registration when disabled
+  if (!env.ALLOW_PUBLIC_REGISTRATION) {
+    throw new ApiError(
+      403,
+      'SIGNUP_DISABLED',
+      'Registration is invitation-only'
+    );
+  }
+
   const normalizedEmail = email.toLowerCase().trim();
 
   const existingUser = await User.findOne({ email: normalizedEmail });
@@ -55,6 +77,7 @@ export const signupUser = async ({ name, email, password }) => {
     passwordHash,
     role: ROLES.EMPLOYEE,
     managerId: null,
+    accountStatus: ACCOUNT_STATUS.ACTIVE,
     isActive: true,
   });
 
@@ -74,7 +97,21 @@ export const loginUser = async ({ email, password }) => {
     throw new ApiError(401, 'INVALID_CREDENTIALS', 'Invalid email or password');
   }
 
-  if (!user.isActive) {
+  // Users in 'invited' state (no password set yet) must behave like an unknown account
+  if (user.accountStatus === ACCOUNT_STATUS.INVITED || !user.passwordHash) {
+    await bcrypt.compare(password, DUMMY_HASH);
+    throw new ApiError(401, 'INVALID_CREDENTIALS', 'Invalid email or password');
+  }
+
+  if (user.accountStatus === ACCOUNT_STATUS.SUSPENDED) {
+    throw new ApiError(
+      403,
+      'ACCOUNT_SUSPENDED',
+      'Account has been suspended. Please contact an administrator.'
+    );
+  }
+
+  if (user.accountStatus === ACCOUNT_STATUS.DEACTIVATED || !user.isActive) {
     throw new ApiError(403, 'ACCOUNT_INACTIVE', 'Account is deactivated');
   }
 

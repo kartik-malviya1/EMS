@@ -35,7 +35,7 @@ export const authenticate = asyncHandler(async (req, _res, next) => {
     throw new ApiError(401, 'UNAUTHENTICATED', 'User no longer exists');
   }
 
-  if (!user.isActive) {
+  if (!user.isActive || user.accountStatus === 'suspended' || user.accountStatus === 'deactivated' || user.accountStatus === 'invited') {
     throw new ApiError(403, 'ACCOUNT_INACTIVE', 'User account is deactivated');
   }
 

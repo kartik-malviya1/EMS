@@ -169,7 +169,6 @@ const attendanceSchema = new mongoose.Schema(
   }
 );
 
-// Indexes per CLAUDE.md section 4
 attendanceSchema.index({ employeeId: 1, workDate: 1 }, { unique: true });
 attendanceSchema.index({ workDate: 1, workingStatus: 1 });
 attendanceSchema.index({ employeeId: 1, workDate: -1 });

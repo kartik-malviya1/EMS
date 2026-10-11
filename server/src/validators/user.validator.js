@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ROLE_LIST } from '../config/constants.js';
+import { ROLE_LIST, ACCOUNT_STATUS_LIST } from '../config/constants.js';
 
 const objectIdRegex = /^[0-9a-fA-F]{24}$/;
 
@@ -12,6 +12,7 @@ export const mongoIdParamSchema = z
 export const userQuerySchema = z
   .object({
     role: z.enum(ROLE_LIST).optional(),
+    accountStatus: z.enum(ACCOUNT_STATUS_LIST).optional(),
     search: z.string().trim().optional(),
     isActive: z
       .preprocess((val) => {
@@ -35,6 +36,11 @@ export const userUpdateSchema = z
       .max(80, 'Name must be at most 80 characters')
       .optional(),
     role: z.enum(ROLE_LIST).optional(),
+    employeeId: z.string().trim().max(30).optional(),
+    department: z.string().trim().max(60).optional(),
+    designation: z.string().trim().max(60).optional(),
+    accountStatus: z.enum(ACCOUNT_STATUS_LIST).optional(),
+    dateOfJoining: z.string().nullable().optional(),
     managerId: z
       .string()
       .regex(objectIdRegex, 'Invalid managerId format')
@@ -43,3 +49,4 @@ export const userUpdateSchema = z
     isActive: z.boolean().optional(),
   })
   .strict();
+

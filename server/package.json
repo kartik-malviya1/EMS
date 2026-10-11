@@ -15,7 +15,9 @@
     "lint": "eslint .",
     "seed:admin": "node src/scripts/seed-admin.js",
     "seed:demo": "node src/scripts/seed-demo.js",
-    "db:purge-admin-attendance": "node src/scripts/purge-admin-attendance.js"
+    "db:purge-admin-attendance": "node src/scripts/purge-admin-attendance.js",
+    "db:migrate-invitation-email-status": "node src/scripts/migrate-invitation-email-status.js",
+    "email:smoke": "node src/scripts/email-smoke.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
@@ -34,6 +36,7 @@
     "multer": "^2.4.0",
     "node-cron": "^4.6.0",
     "pdfkit": "^0.20.2",
+    "resend": "^6.32.1",
     "socket.io": "^4.8.4",
     "zod": "^4.6.5"
   },

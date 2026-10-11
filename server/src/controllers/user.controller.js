@@ -29,6 +29,7 @@ export const getUser = asyncHandler(async (req, res) => {
 });
 
 export const updateUser = asyncHandler(async (req, res) => {
-  const updated = await updateUserService(req.user, req.params.id, req.body);
+  const updated = await updateUserService(req.user, req.params.id, req.body, req);
   return sendSuccess(res, updated, 200);
 });
+

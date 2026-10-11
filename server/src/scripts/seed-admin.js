@@ -43,6 +43,7 @@ export const seedAdmin = async () => {
       role: ROLES.ADMIN,
       managerId: null,
       isActive: true,
+      accountStatus: 'active',
     });
 
     logger.info(`Admin user successfully seeded: ${admin.email} (${admin._id})`);
