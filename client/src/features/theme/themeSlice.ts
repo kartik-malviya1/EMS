@@ -17,6 +17,13 @@ interface ThemeState {
 }
 
 const initialTheme = getInitialTheme();
+if (typeof window !== 'undefined') {
+  if (initialTheme === 'dark') {
+    document.documentElement.classList.add('dark');
+  } else {
+    document.documentElement.classList.remove('dark');
+  }
+}
 
 const initialState: ThemeState = {
   theme: initialTheme,

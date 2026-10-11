@@ -63,15 +63,23 @@ export const AdminReviewPage: React.FC = () => {
         <div className="space-y-4">
           <div className="border border-border/70 rounded-2xl bg-card overflow-hidden shadow-xs">
             <div className="overflow-x-auto">
-              <table className="w-full text-xs text-left">
-                <thead className="bg-muted/40 border-b border-border/60 text-muted-foreground uppercase tracking-wider font-bold text-[11px]">
+              <table className="w-full text-xs text-left table-fixed min-w-[940px] border-collapse">
+                <colgroup>
+                  <col className="w-[230px]" />
+                  <col className="w-[110px]" />
+                  <col className="w-[180px]" />
+                  <col className="w-[180px]" />
+                  <col className="w-[110px]" />
+                  <col className="w-[130px]" />
+                </colgroup>
+                <thead className="bg-muted/40 border-b border-border/60 text-muted-foreground uppercase tracking-wider font-bold text-[11px] h-11">
                   <tr>
-                    <th className="py-3.5 px-4">Employee</th>
-                    <th className="py-3.5 px-4">Work Date</th>
-                    <th className="py-3.5 px-4">Clock-in & Out</th>
-                    <th className="py-3.5 px-4">Geofence Location</th>
-                    <th className="py-3.5 px-4">Status</th>
-                    <th className="py-3.5 px-4 text-right">Action</th>
+                    <th className="py-3 px-4 font-bold align-middle">Employee</th>
+                    <th className="py-3 px-4 font-bold align-middle">Work Date</th>
+                    <th className="py-3 px-4 font-bold align-middle">Clock-in & Out</th>
+                    <th className="py-3 px-4 font-bold align-middle">Geofence Location</th>
+                    <th className="py-3 px-4 font-bold align-middle">Status</th>
+                    <th className="py-3 px-4 font-bold align-middle text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/50">
@@ -87,15 +95,15 @@ export const AdminReviewPage: React.FC = () => {
                     return (
                       <tr
                         key={recId}
-                        className="hover:bg-muted/30 transition-colors"
+                        className="hover:bg-muted/30 transition-colors h-14"
                       >
-                        <td className="py-3.5 px-4">
+                        <td className="py-2.5 px-4 align-middle">
                           <EmployeeCell employee={emp} />
                         </td>
-                        <td className="py-3.5 px-4 font-semibold text-foreground whitespace-nowrap">
+                        <td className="py-2.5 px-4 align-middle font-mono font-semibold text-foreground whitespace-nowrap">
                           {rec.workDate}
                         </td>
-                        <td className="py-3.5 px-4">
+                        <td className="py-2.5 px-4 align-middle">
                           <AttendanceTimeline
                             punchInAt={rec.punchIn?.at}
                             punchOutAt={rec.punchOut?.at}
@@ -103,7 +111,7 @@ export const AdminReviewPage: React.FC = () => {
                             workingStatus={rec.workingStatus}
                           />
                         </td>
-                        <td className="py-3.5 px-4">
+                        <td className="py-2.5 px-4 align-middle">
                           <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-muted/60 border border-border/60">
                             <MapPin className="w-3 h-3 text-primary shrink-0" />
                             <span>
@@ -112,17 +120,17 @@ export const AdminReviewPage: React.FC = () => {
                             </span>
                           </div>
                         </td>
-                        <td className="py-3.5 px-4">
+                        <td className="py-2.5 px-4 align-middle">
                           <StatusBadge
                             kind="verification"
                             status={rec.verification?.status || 'pending'}
                             size="sm"
                           />
                         </td>
-                        <td className="py-3.5 px-4 text-right">
+                        <td className="py-2.5 px-4 align-middle text-right">
                           <Button
                             size="sm"
-                            className="h-8 rounded-xl text-xs font-semibold gap-1.5 shadow-sm"
+                            className="h-8 px-3 rounded-xl text-xs font-semibold gap-1.5 shadow-sm"
                             onClick={() => {
                               setSelectedRecord(rec);
                               setDialogOpen(true);
@@ -138,16 +146,17 @@ export const AdminReviewPage: React.FC = () => {
               </table>
             </div>
 
-            {meta && meta.totalPages > 1 && (
-              <div className="p-3 border-t border-border/70 flex items-center justify-between text-xs text-muted-foreground bg-muted/20">
+            {meta && (
+              <div className="p-3 border-t border-border/70 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground bg-muted/20">
                 <span>
-                  Showing Page {meta.page} of {meta.totalPages} ({meta.total} records total)
+                  Showing Page <span className="font-semibold text-foreground">{meta.page}</span> of{' '}
+                  <span className="font-semibold text-foreground">{meta.totalPages}</span> ({meta.total} records total)
                 </span>
                 <div className="flex items-center gap-2">
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-7 text-xs rounded-lg"
+                    className="h-8 text-xs rounded-xl gap-1 px-3"
                     disabled={meta.page <= 1}
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
                   >
@@ -156,7 +165,7 @@ export const AdminReviewPage: React.FC = () => {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-7 text-xs rounded-lg"
+                    className="h-8 text-xs rounded-xl gap-1 px-3"
                     disabled={meta.page >= meta.totalPages}
                     onClick={() => setPage((p) => p + 1)}
                   >

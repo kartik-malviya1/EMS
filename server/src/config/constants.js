@@ -62,6 +62,9 @@ export const NOTIFICATION_TYPES = {
   MISSED_PUNCH_IN: 'missed_punch_in',
   MISSED_PUNCH_OUT: 'missed_punch_out',
   ATTENDANCE_AUTO_CLOSED: 'attendance_auto_closed',
+  LEAVE_REQUESTED: 'leave_requested',
+  LEAVE_APPROVED: 'leave_approved',
+  LEAVE_REJECTED: 'leave_rejected',
 };
 
 export const NOTIFICATION_TYPE_LIST = Object.values(NOTIFICATION_TYPES);
@@ -69,6 +72,31 @@ export const NOTIFICATION_TYPE_LIST = Object.values(NOTIFICATION_TYPES);
 export const DEFAULT_BUSINESS_TIMEZONE = 'Asia/Kolkata';
 export const STANDARD_SHIFT_MINUTES = 480;
 export const DEFAULT_WORKING_DAYS = [1, 2, 3, 4, 5];
+
+export const LEAVE_STATUS = {
+  PENDING: 'pending',
+  APPROVED: 'approved',
+  REJECTED: 'rejected',
+  CANCELLED: 'cancelled',
+};
+
+export const LEAVE_STATUS_LIST = Object.values(LEAVE_STATUS);
+
+export const LEAVE_TYPE = {
+  ANNUAL: 'annual',
+  SICK: 'sick',
+  CASUAL: 'casual',
+  UNPAID: 'unpaid',
+};
+
+export const LEAVE_TYPE_LIST = Object.values(LEAVE_TYPE);
+
+export const HALF_DAY_PERIOD = {
+  FIRST_HALF: 'first_half',
+  SECOND_HALF: 'second_half',
+};
+
+export const HALF_DAY_PERIOD_LIST = Object.values(HALF_DAY_PERIOD);
 
 export const ACCOUNT_STATUS = {
   INVITED: 'invited',
@@ -99,7 +127,7 @@ export const EMAIL_DELIVERY_STATUS_LIST = Object.values(EMAIL_DELIVERY_STATUS);
 export const AUDIT_ACTIONS = {
   INVITATION_CREATED: 'invitation_created',
   INVITATION_EMAIL_ACCEPTED: 'invitation_email_accepted',
-  INVITATION_EMAIL_SENT: 'invitation_email_accepted', // Alias for backward compatibility
+  INVITATION_EMAIL_SENT: 'invitation_email_sent',
   INVITATION_EMAIL_FAILED: 'invitation_email_failed',
   INVITATION_RESENT: 'invitation_resent',
   INVITATION_REVOKED: 'invitation_revoked',
@@ -111,7 +139,11 @@ export const AUDIT_ACTIONS = {
   ACCOUNT_SUSPENDED: 'account_suspended',
   ACCOUNT_REACTIVATED: 'account_reactivated',
   ACCOUNT_DEACTIVATED: 'account_deactivated',
+  LEAVE_APPLIED: 'leave_applied',
+  LEAVE_APPROVED: 'leave_approved',
+  LEAVE_REJECTED: 'leave_rejected',
+  LEAVE_CANCELLED: 'leave_cancelled',
 };
 
-export const AUDIT_ACTION_LIST = Object.values(AUDIT_ACTIONS);
+export const AUDIT_ACTION_LIST = Array.from(new Set(Object.values(AUDIT_ACTIONS)));
 

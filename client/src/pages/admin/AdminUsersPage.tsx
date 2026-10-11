@@ -12,22 +12,23 @@ import { EmployeeCell } from '../../components/common/EmployeeCell';
 import { useGetUsersQuery } from '../../features/users/usersApi';
 import { useGetEmailStatusQuery } from '../../features/invitations/invitationsApi';
 import type { User, Role, AccountStatus } from '../../types/models';
+import { TabNavigation, type TabItem } from '../../components/common/TabNavigation';
 import {
   Search,
   UserCog,
   ChevronLeft,
   ChevronRight,
   RotateCcw,
+  RefreshCw,
   Shield,
   Briefcase,
   User as UserIcon,
   UserPlus,
-  Users,
-  Mail,
   Clock,
   CheckCircle2,
   AlertTriangle,
   XCircle,
+  Mail,
 } from 'lucide-react';
 
 export const AdminUsersPage: React.FC = () => {
@@ -50,7 +51,7 @@ export const AdminUsersPage: React.FC = () => {
     limit: 15,
   };
 
-  const { data, isLoading, isError, refetch } = useGetUsersQuery(queryParams);
+  const { data, isLoading, isError, isFetching, refetch } = useGetUsersQuery(queryParams);
   const { data: emailStatus } = useGetEmailStatusQuery();
 
   const handleResetFilters = () => {
@@ -87,23 +88,28 @@ export const AdminUsersPage: React.FC = () => {
   const users = data?.data || [];
   const meta = data?.meta;
 
+  const tabs: TabItem[] = [
+    { id: 'directory', label: 'Staff Directory', count: meta?.total },
+    { id: 'invitations', label: 'Invitations & Onboarding' },
+  ];
+
   const renderRoleBadge = (userRole: Role) => {
     switch (userRole) {
       case 'admin':
         return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/20">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/20">
             <Shield className="w-3 h-3" /> Admin
           </span>
         );
       case 'manager':
         return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
             <Briefcase className="w-3 h-3" /> Manager
           </span>
         );
       default:
         return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-500/10 text-slate-600 dark:text-slate-400 border border-slate-500/20">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-500/10 text-slate-600 dark:text-slate-400 border border-slate-500/20">
             <UserIcon className="w-3 h-3" /> Employee
           </span>
         );
@@ -158,51 +164,18 @@ export const AdminUsersPage: React.FC = () => {
         </Button>
       </div>
 
-      {/* Tabs Switcher */}
-      <div className="flex items-center gap-2 border-b border-border/60 pb-2">
-        <button
-          type="button"
-          onClick={() => setActiveTab('directory')}
-          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-            activeTab === 'directory'
-              ? 'bg-primary text-primary-foreground shadow-xs'
-              : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-          }`}
-        >
-          <Users className="w-3.5 h-3.5" />
-          <span>Staff Directory</span>
-          {meta?.total !== undefined && (
-            <span
-              className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                activeTab === 'directory'
-                  ? 'bg-primary-foreground/20 text-primary-foreground'
-                  : 'bg-muted text-muted-foreground'
-              }`}
-            >
-              {meta.total}
-            </span>
-          )}
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('invitations')}
-          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-            activeTab === 'invitations'
-              ? 'bg-primary text-primary-foreground shadow-xs'
-              : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-          }`}
-        >
-          <Mail className="w-3.5 h-3.5" />
-          <span>Invitations & Onboarding</span>
-        </button>
-      </div>
+      {/* Tabs Navigation */}
+      <TabNavigation
+        tabs={tabs}
+        activeTab={activeTab}
+        onChange={(tabId) => setActiveTab(tabId as 'directory' | 'invitations')}
+      />
 
       {/* Tab 1: Staff Directory */}
       {activeTab === 'directory' && (
         <div className="space-y-4">
           {/* Filter and Search Bar */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-1">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pt-1">
             <div className="relative flex-1 max-w-sm">
               <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
               <Input
@@ -244,10 +217,22 @@ export const AdminUsersPage: React.FC = () => {
                 variant="ghost"
                 size="sm"
                 onClick={handleResetFilters}
-                className="h-9 text-xs gap-1 rounded-xl"
+                className="h-9 px-2 text-xs gap-1 rounded-xl text-muted-foreground hover:text-foreground"
                 title="Reset filters"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => refetch()}
+                disabled={isLoading || isFetching}
+                className="h-9 px-3 text-xs gap-1.5 rounded-xl border-border/70 hover:bg-muted/60"
+                title="Refresh staff"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin text-primary' : ''}`} />
+                <span className="hidden sm:inline">Refresh</span>
               </Button>
             </div>
           </div>
@@ -275,15 +260,23 @@ export const AdminUsersPage: React.FC = () => {
             >
               <div className="border border-border/70 rounded-2xl bg-card overflow-hidden shadow-xs">
                 <div className="overflow-x-auto">
-                  <table className="w-full text-xs text-left">
-                    <thead className="bg-muted/40 border-b border-border/60 text-muted-foreground uppercase tracking-wider font-bold text-[11px]">
+                  <table className="w-full text-xs text-left table-fixed min-w-[940px] border-collapse">
+                    <colgroup>
+                      <col className="w-[240px]" />
+                      <col className="w-[120px]" />
+                      <col className="w-[170px]" />
+                      <col className="w-[170px]" />
+                      <col className="w-[130px]" />
+                      <col className="w-[90px]" />
+                    </colgroup>
+                    <thead className="bg-muted/40 border-b border-border/60 text-muted-foreground uppercase tracking-wider font-bold text-[11px] h-11">
                       <tr>
-                        <th className="py-3.5 px-4">User</th>
-                        <th className="py-3.5 px-4">Role</th>
-                        <th className="py-3.5 px-4">Dept / Designation</th>
-                        <th className="py-3.5 px-4">Reporting Manager</th>
-                        <th className="py-3.5 px-4">Status</th>
-                        <th className="py-3.5 px-4 text-right">Action</th>
+                        <th className="py-3 px-4 font-bold align-middle">User</th>
+                        <th className="py-3 px-4 font-bold align-middle">Role</th>
+                        <th className="py-3 px-4 font-bold align-middle">Dept / Designation</th>
+                        <th className="py-3 px-4 font-bold align-middle">Reporting Manager</th>
+                        <th className="py-3 px-4 font-bold align-middle">Status</th>
+                        <th className="py-3 px-4 font-bold align-middle text-right">Action</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border/50">
@@ -295,25 +288,31 @@ export const AdminUsersPage: React.FC = () => {
                         const uId = u.id || u._id;
 
                         return (
-                          <tr key={uId} className="hover:bg-muted/30 transition-colors">
-                            <td className="py-3 px-4">
+                          <tr key={uId} className="hover:bg-muted/30 transition-colors h-14">
+                            <td className="py-2.5 px-4 align-middle">
                               <EmployeeCell employee={u} />
                             </td>
-                            <td className="py-3 px-4">{renderRoleBadge(u.role)}</td>
-                            <td className="py-3 px-4 text-muted-foreground">
+                            <td className="py-2.5 px-4 align-middle">{renderRoleBadge(u.role)}</td>
+                            <td className="py-2.5 px-4 align-middle text-muted-foreground">
                               {u.department || u.designation ? (
                                 <div>
-                                  <div className="font-medium text-foreground">{u.designation || 'Staff'}</div>
-                                  <div className="text-[11px]">{u.department || 'General'}</div>
+                                  <div className="font-medium text-foreground truncate max-w-[150px]" title={u.designation || undefined}>
+                                    {u.designation || 'Staff'}
+                                  </div>
+                                  <div className="text-[11px] truncate max-w-[150px]" title={u.department || undefined}>
+                                    {u.department || 'General'}
+                                  </div>
                                 </div>
                               ) : (
                                 <span className="text-muted-foreground/50">—</span>
                               )}
                             </td>
-                            <td className="py-3 px-4 text-muted-foreground">
+                            <td className="py-2.5 px-4 align-middle text-muted-foreground">
                               {u.role === 'employee' ? (
                                 manager ? (
-                                  <span className="font-medium text-foreground">{manager.name}</span>
+                                  <span className="font-medium text-foreground truncate block max-w-[150px]" title={manager.name}>
+                                    {manager.name}
+                                  </span>
                                 ) : (
                                   <span className="italic text-muted-foreground/70">None assigned</span>
                                 )
@@ -321,12 +320,12 @@ export const AdminUsersPage: React.FC = () => {
                                 <span className="text-muted-foreground/50">—</span>
                               )}
                             </td>
-                            <td className="py-3 px-4">{renderAccountStatusBadge(u.accountStatus, u.isActive)}</td>
-                            <td className="py-3 px-4 text-right">
+                            <td className="py-2.5 px-4 align-middle">{renderAccountStatusBadge(u.accountStatus, u.isActive)}</td>
+                            <td className="py-2.5 px-4 align-middle text-right">
                               <Button
                                 variant="outline"
                                 size="sm"
-                                className="h-8 rounded-xl text-xs font-semibold hover:border-primary hover:text-primary transition-all gap-1.5"
+                                className="h-8 px-3 rounded-xl text-xs font-semibold hover:border-primary hover:text-primary transition-all gap-1.5"
                                 onClick={() => {
                                   setSelectedUser(u);
                                   setEditDialogOpen(true);
@@ -342,16 +341,17 @@ export const AdminUsersPage: React.FC = () => {
                   </table>
                 </div>
 
-                {meta && meta.totalPages > 1 && (
-                  <div className="p-3 border-t border-border/70 flex items-center justify-between text-xs text-muted-foreground bg-muted/20">
+                {meta && (
+                  <div className="p-3 border-t border-border/70 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground bg-muted/20">
                     <span>
-                      Showing Page {meta.page} of {meta.totalPages} ({meta.total} users total)
+                      Showing Page <span className="font-semibold text-foreground">{meta.page}</span> of{' '}
+                      <span className="font-semibold text-foreground">{meta.totalPages}</span> ({meta.total} users total)
                     </span>
                     <div className="flex items-center gap-2">
                       <Button
                         variant="outline"
                         size="sm"
-                        className="h-7 text-xs rounded-lg"
+                        className="h-8 text-xs rounded-xl gap-1 px-3"
                         disabled={meta.page <= 1}
                         onClick={() => handlePageChange(Math.max(1, meta.page - 1))}
                       >
@@ -360,7 +360,7 @@ export const AdminUsersPage: React.FC = () => {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="h-7 text-xs rounded-lg"
+                        className="h-8 text-xs rounded-xl gap-1 px-3"
                         disabled={meta.page >= meta.totalPages}
                         onClick={() => handlePageChange(meta.page + 1)}
                       >

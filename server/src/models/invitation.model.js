@@ -53,7 +53,16 @@ const invitationSchema = new mongoose.Schema(
     invitedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: [true, 'Inviting administrator is required'],
+      required: [true, 'Inviting user is required'],
+      index: true,
+    },
+    invitedByRole: {
+      type: String,
+      enum: {
+        values: [ROLES.ADMIN, ROLES.MANAGER],
+        message: '{VALUE} is not a valid invitedByRole',
+      },
+      default: ROLES.ADMIN,
     },
     tokenHash: {
       type: String,

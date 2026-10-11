@@ -285,7 +285,7 @@ export const InvitationsTable: React.FC = () => {
   return (
     <div className="space-y-4">
       {/* Filter and Search Bar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-1">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pt-1">
         <div className="relative flex-1 max-w-sm">
           <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
           <Input
@@ -316,10 +316,21 @@ export const InvitationsTable: React.FC = () => {
             variant="ghost"
             size="sm"
             onClick={handleResetFilters}
-            className="h-9 text-xs gap-1 rounded-xl"
+            className="h-9 px-2 text-xs gap-1 rounded-xl text-muted-foreground hover:text-foreground"
             title="Reset filters"
           >
             <RotateCcw className="w-3.5 h-3.5" />
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => refetch()}
+            className="h-9 px-3 text-xs gap-1.5 rounded-xl border-border/70 hover:bg-muted/60"
+            title="Refresh invitations"
+          >
+            <RefreshCw className="w-3.5 h-3.5 text-primary" />
+            <span className="hidden sm:inline">Refresh</span>
           </Button>
         </div>
       </div>
@@ -345,16 +356,25 @@ export const InvitationsTable: React.FC = () => {
         >
           <div className="border border-border/70 rounded-2xl bg-card overflow-hidden shadow-xs">
             <div className="overflow-x-auto">
-              <table className="w-full text-xs text-left">
-                <thead className="bg-muted/40 border-b border-border/60 text-muted-foreground uppercase tracking-wider font-bold text-[11px]">
+              <table className="w-full text-xs text-left table-fixed min-w-[960px] border-collapse">
+                <colgroup>
+                  <col className="w-[210px]" />
+                  <col className="w-[110px]" />
+                  <col className="w-[150px]" />
+                  <col className="w-[110px]" />
+                  <col className="w-[180px]" />
+                  <col className="w-[120px]" />
+                  <col className="w-[140px]" />
+                </colgroup>
+                <thead className="bg-muted/40 border-b border-border/60 text-muted-foreground uppercase tracking-wider font-bold text-[11px] h-11">
                   <tr>
-                    <th className="py-3.5 px-4">Invited Recipient</th>
-                    <th className="py-3.5 px-4">Role</th>
-                    <th className="py-3.5 px-4">Department / Title</th>
-                    <th className="py-3.5 px-4">Status</th>
-                    <th className="py-3.5 px-4">Email Delivery</th>
-                    <th className="py-3.5 px-4">Expires At</th>
-                    <th className="py-3.5 px-4 text-right">Actions</th>
+                    <th className="py-3 px-4 font-bold align-middle">Invited Recipient</th>
+                    <th className="py-3 px-4 font-bold align-middle">Role</th>
+                    <th className="py-3 px-4 font-bold align-middle">Department / Title</th>
+                    <th className="py-3 px-4 font-bold align-middle">Status</th>
+                    <th className="py-3 px-4 font-bold align-middle">Email Delivery</th>
+                    <th className="py-3 px-4 font-bold align-middle">Expires At</th>
+                    <th className="py-3 px-4 font-bold align-middle text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/50">
@@ -367,17 +387,21 @@ export const InvitationsTable: React.FC = () => {
                     const isResendDisabled = isThisResending || cooldown > 0;
 
                     return (
-                      <tr key={invId} className="hover:bg-muted/30 transition-colors">
-                        <td className="py-3 px-4">
-                          <div className="font-semibold text-foreground">{inv.name}</div>
-                          <div className="text-[11px] text-muted-foreground">{inv.email}</div>
+                      <tr key={invId} className="hover:bg-muted/30 transition-colors h-14">
+                        <td className="py-2.5 px-4 align-middle">
+                          <div className="font-semibold text-foreground truncate max-w-[190px]" title={inv.name}>
+                            {inv.name}
+                          </div>
+                          <div className="text-[11px] text-muted-foreground truncate max-w-[190px]" title={inv.email}>
+                            {inv.email}
+                          </div>
                           {inv.employeeId && (
                             <div className="text-[10px] font-mono text-muted-foreground/80 mt-0.5">
                               ID: {inv.employeeId}
                             </div>
                           )}
                         </td>
-                        <td className="py-3 px-4">
+                        <td className="py-2.5 px-4 align-middle">
                           {inv.role === 'manager' ? (
                             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
                               <Briefcase className="w-3 h-3" /> Manager
@@ -388,18 +412,22 @@ export const InvitationsTable: React.FC = () => {
                             </span>
                           )}
                         </td>
-                        <td className="py-3 px-4 text-muted-foreground">
+                        <td className="py-2.5 px-4 align-middle text-muted-foreground">
                           {inv.department || inv.designation ? (
                             <div>
-                              <div className="font-medium text-foreground">{inv.designation || 'Staff'}</div>
-                              <div className="text-[11px]">{inv.department || 'General'}</div>
+                              <div className="font-medium text-foreground truncate max-w-[140px]" title={inv.designation || undefined}>
+                                {inv.designation || 'Staff'}
+                              </div>
+                              <div className="text-[11px] truncate max-w-[140px]" title={inv.department || undefined}>
+                                {inv.department || 'General'}
+                              </div>
                             </div>
                           ) : (
                             <span className="text-muted-foreground/50">—</span>
                           )}
                         </td>
-                        <td className="py-3 px-4">{renderStatusBadge(inv.status)}</td>
-                        <td className="py-3 px-4">
+                        <td className="py-2.5 px-4 align-middle">{renderStatusBadge(inv.status)}</td>
+                        <td className="py-2.5 px-4 align-middle">
                           {renderDeliveryCell(inv)}
                           {inv.resendCount && inv.resendCount > 0 ? (
                             <div className="text-[10px] text-muted-foreground mt-0.5">
@@ -407,7 +435,7 @@ export const InvitationsTable: React.FC = () => {
                             </div>
                           ) : null}
                         </td>
-                        <td className="py-3 px-4 text-muted-foreground whitespace-nowrap">
+                        <td className="py-2.5 px-4 align-middle text-muted-foreground whitespace-nowrap font-mono text-[11px]">
                           {new Date(inv.expiresAt).toLocaleDateString([], {
                             month: 'short',
                             day: 'numeric',

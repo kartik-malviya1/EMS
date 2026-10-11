@@ -335,6 +335,71 @@ export const markAllNotificationsAsRead = async (userId) => {
   return { modifiedCount: result.modifiedCount };
 };
 
+/**
+ * Leave requested -> notify manager or admins
+ */
+export const notifyLeaveRequested = async ({ leaveRequest, employee }) => {
+  const employeeName = employee.name || 'An employee';
+  const recipients = new Set();
+
+  if (employee.managerId) {
+    recipients.add(employee.managerId.toString());
+  }
+
+  // If requester is a manager or has no assigned manager, notify all admins
+  if (employee.role === ROLES.MANAGER || !employee.managerId) {
+    const admins = await User.find({ role: ROLES.ADMIN, isActive: true }).select('_id');
+    admins.forEach((admin) => {
+      recipients.add(admin._id.toString());
+    });
+  }
+
+  // Exclude requester
+  const requesterId = (employee._id || employee).toString();
+  recipients.delete(requesterId);
+
+  const notifications = [];
+  for (const recipientId of recipients) {
+    const doc = await Notification.create({
+      userId: recipientId,
+      type: NOTIFICATION_TYPES.LEAVE_REQUESTED,
+      title: 'New Leave Request',
+      message: `${employeeName} submitted a leave request for ${leaveRequest.startDate} to ${leaveRequest.endDate} (${leaveRequest.daysCount} days).`,
+      data: { leaveId: leaveRequest._id },
+    });
+    emitNotification(recipientId, doc);
+    notifications.push(doc);
+  }
+
+  return notifications;
+};
+
+/**
+ * Leave reviewed -> notify the employee
+ */
+export const notifyLeaveReviewed = async ({ leaveRequest, reviewer: _reviewer, status }) => {
+  const employeeId = leaveRequest.userId?._id || leaveRequest.userId;
+  const type =
+    status === 'approved'
+      ? NOTIFICATION_TYPES.LEAVE_APPROVED
+      : NOTIFICATION_TYPES.LEAVE_REJECTED;
+
+  const title = status === 'approved' ? 'Leave Request Approved' : 'Leave Request Rejected';
+  const remarksText = leaveRequest.reviewerRemarks ? ` Remarks: "${leaveRequest.reviewerRemarks}"` : '';
+  const message = `Your leave request for ${leaveRequest.startDate} to ${leaveRequest.endDate} was ${status}.${remarksText}`;
+
+  const doc = await Notification.create({
+    userId: employeeId,
+    type,
+    title,
+    message,
+    data: { leaveId: leaveRequest._id },
+  });
+
+  emitNotification(employeeId, doc);
+  return doc;
+};
+
 export default {
   notifyVerificationReviewed,
   notifyOvertimeRequested,
@@ -342,6 +407,8 @@ export default {
   notifyMissedPunchIn,
   notifyMissedPunchOut,
   notifyAutoClose,
+  notifyLeaveRequested,
+  notifyLeaveReviewed,
   listUserNotifications,
   getUnreadNotificationCount,
   markNotificationAsRead,

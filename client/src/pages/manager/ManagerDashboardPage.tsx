@@ -123,89 +123,136 @@ export const ManagerDashboardPage: React.FC = () => {
           isPending ? 'opacity-70' : 'opacity-100'
         }`}
       >
-        {/* Tiimi-Inspired 3-Column Summary Cards */}
-        <MetricSummaryCards
-          presentMetrics={{
-            totalPresent: metrics.punchedIn,
-            completed: metrics.completed || 0,
-            inProgress: inProgressCount,
-          }}
-          actionMetrics={{
-            pendingReviews: metrics.pendingVerification || 0,
-            pendingOvertime: metrics.pendingOvertime || 0,
-            invalidRecords: metrics.incomplete || 0,
-          }}
-          teamMetrics={{
-            totalEmployees: metrics.teamSize || 0,
-            complianceRate:
-              metrics.teamSize > 0
-                ? `${Math.round(((metrics.completed || 0) / Math.max(1, metrics.punchedIn || 1)) * 100)}%`
-                : '100%',
-          }}
-        />
+        {activeTab === 'overview' ? (
+          <>
+            {/* Tiimi-Inspired 3-Column Summary Cards */}
+            <MetricSummaryCards
+              presentMetrics={{
+                totalPresent: metrics.punchedIn,
+                completed: metrics.completed || 0,
+                inProgress: inProgressCount,
+              }}
+              actionMetrics={{
+                pendingReviews: metrics.pendingVerification || 0,
+                pendingOvertime: metrics.pendingOvertime || 0,
+                invalidRecords: metrics.incomplete || 0,
+              }}
+              teamMetrics={{
+                totalEmployees: metrics.teamSize || 0,
+                complianceRate:
+                  metrics.teamSize > 0
+                    ? `${Math.round(((metrics.completed || 0) / Math.max(1, metrics.punchedIn || 1)) * 100)}%`
+                    : '100%',
+              }}
+            />
 
-      {/* Quick Action Hub */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-        <Link to="/manager/review" className="block">
-          <Card className="h-full border-border/70 hover:border-primary/40 hover:shadow-md transition-all p-5 flex flex-col justify-between group">
-            <div>
-              <div className="w-10 h-10 rounded-xl bg-violet-500/10 text-violet-500 flex items-center justify-center mb-3 group-hover:bg-violet-500 group-hover:text-white transition-all">
-                <ShieldCheck className="w-5 h-5" />
-              </div>
-              <h3 className="font-bold text-base text-foreground mb-1 group-hover:text-primary transition-colors">
-                Verification Queue
-              </h3>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Review selfies and geofence verification for completed shifts.
-              </p>
-            </div>
-            <div className="mt-4 flex items-center gap-1 text-xs font-bold text-primary group-hover:gap-2 transition-all">
-              <span>Audit pending items</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </div>
-          </Card>
-        </Link>
+            {/* Overview Quick Shortcuts */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+              <Link to="/manager/review" className="block">
+                <Card className="h-full border-border/70 hover:border-primary/40 hover:shadow-md transition-all p-5 flex flex-col justify-between group">
+                  <div>
+                    <div className="w-10 h-10 rounded-xl bg-violet-500/10 text-violet-500 flex items-center justify-center mb-3 group-hover:bg-violet-500 group-hover:text-white transition-all">
+                      <ShieldCheck className="w-5 h-5" />
+                    </div>
+                    <h3 className="font-bold text-base text-foreground mb-1 group-hover:text-primary transition-colors">
+                      Pending Verifications
+                    </h3>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      {metrics.pendingVerification || 0} shifts awaiting your verification review.
+                    </p>
+                  </div>
+                  <div className="mt-4 flex items-center gap-1 text-xs font-bold text-primary group-hover:gap-2 transition-all">
+                    <span>Audit pending shifts</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </div>
+                </Card>
+              </Link>
 
-        <Link to="/manager/overtime" className="block">
-          <Card className="h-full border-border/70 hover:border-primary/40 hover:shadow-md transition-all p-5 flex flex-col justify-between group">
-            <div>
-              <div className="w-10 h-10 rounded-xl bg-orange-500/10 text-orange-500 flex items-center justify-center mb-3 group-hover:bg-orange-500 group-hover:text-white transition-all">
-                <Clock className="w-5 h-5" />
-              </div>
-              <h3 className="font-bold text-base text-foreground mb-1 group-hover:text-primary transition-colors">
-                Overtime Requests
-              </h3>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Approve or reject overtime requests submitted by your team.
-              </p>
+              <Link to="/manager/overtime" className="block">
+                <Card className="h-full border-border/70 hover:border-primary/40 hover:shadow-md transition-all p-5 flex flex-col justify-between group">
+                  <div>
+                    <div className="w-10 h-10 rounded-xl bg-orange-500/10 text-orange-500 flex items-center justify-center mb-3 group-hover:bg-orange-500 group-hover:text-white transition-all">
+                      <Clock className="w-5 h-5" />
+                    </div>
+                    <h3 className="font-bold text-base text-foreground mb-1 group-hover:text-primary transition-colors">
+                      Pending Overtime
+                    </h3>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      {metrics.pendingOvertime || 0} overtime requests awaiting your approval.
+                    </p>
+                  </div>
+                  <div className="mt-4 flex items-center gap-1 text-xs font-bold text-primary group-hover:gap-2 transition-all">
+                    <span>Process overtime queue</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </div>
+                </Card>
+              </Link>
             </div>
-            <div className="mt-4 flex items-center gap-1 text-xs font-bold text-primary group-hover:gap-2 transition-all">
-              <span>Process requests</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </div>
-          </Card>
-        </Link>
+          </>
+        ) : (
+          /* Action Hub */
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+            <Link to="/manager/review" className="block">
+              <Card className="h-full border-border/70 hover:border-primary/40 hover:shadow-md transition-all p-5 flex flex-col justify-between group">
+                <div>
+                  <div className="w-10 h-10 rounded-xl bg-violet-500/10 text-violet-500 flex items-center justify-center mb-3 group-hover:bg-violet-500 group-hover:text-white transition-all">
+                    <ShieldCheck className="w-5 h-5" />
+                  </div>
+                  <h3 className="font-bold text-base text-foreground mb-1 group-hover:text-primary transition-colors">
+                    Verification Queue
+                  </h3>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Review selfies and geofence verification for completed shifts.
+                  </p>
+                </div>
+                <div className="mt-4 flex items-center gap-1 text-xs font-bold text-primary group-hover:gap-2 transition-all">
+                  <span>Audit pending items</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </div>
+              </Card>
+            </Link>
 
-        <Link to="/manager/attendance" className="block">
-          <Card className="h-full border-border/70 hover:border-primary/40 hover:shadow-md transition-all p-5 flex flex-col justify-between group">
-            <div>
-              <div className="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center mb-3 group-hover:bg-blue-500 group-hover:text-white transition-all">
-                <Calendar className="w-5 h-5" />
-              </div>
-              <h3 className="font-bold text-base text-foreground mb-1 group-hover:text-primary transition-colors">
-                Team Shift History
-              </h3>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Search, filter, and review historical shifts across all team members.
-              </p>
-            </div>
-            <div className="mt-4 flex items-center gap-1 text-xs font-bold text-primary group-hover:gap-2 transition-all">
-              <span>View full history</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </div>
-          </Card>
-        </Link>
-      </div>
+            <Link to="/manager/overtime" className="block">
+              <Card className="h-full border-border/70 hover:border-primary/40 hover:shadow-md transition-all p-5 flex flex-col justify-between group">
+                <div>
+                  <div className="w-10 h-10 rounded-xl bg-orange-500/10 text-orange-500 flex items-center justify-center mb-3 group-hover:bg-orange-500 group-hover:text-white transition-all">
+                    <Clock className="w-5 h-5" />
+                  </div>
+                  <h3 className="font-bold text-base text-foreground mb-1 group-hover:text-primary transition-colors">
+                    Overtime Requests
+                  </h3>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Approve or reject overtime requests submitted by your team.
+                  </p>
+                </div>
+                <div className="mt-4 flex items-center gap-1 text-xs font-bold text-primary group-hover:gap-2 transition-all">
+                  <span>Process requests</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </div>
+              </Card>
+            </Link>
+
+            <Link to="/manager/attendance" className="block">
+              <Card className="h-full border-border/70 hover:border-primary/40 hover:shadow-md transition-all p-5 flex flex-col justify-between group">
+                <div>
+                  <div className="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center mb-3 group-hover:bg-blue-500 group-hover:text-white transition-all">
+                    <Calendar className="w-5 h-5" />
+                  </div>
+                  <h3 className="font-bold text-base text-foreground mb-1 group-hover:text-primary transition-colors">
+                    Team Shift History
+                  </h3>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Search, filter, and review historical shifts across all team members.
+                  </p>
+                </div>
+                <div className="mt-4 flex items-center gap-1 text-xs font-bold text-primary group-hover:gap-2 transition-all">
+                  <span>View full history</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </div>
+              </Card>
+            </Link>
+          </div>
+        )}
       </section>
     </div>
   );

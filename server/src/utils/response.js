@@ -19,7 +19,6 @@ export const sendError = (res, code, message, statusCode = 500, details = undefi
   };
   if (details !== undefined) {
     payload.details = details;
-    payload.error.details = details;
   }
   return res.status(statusCode).json(payload);
 };

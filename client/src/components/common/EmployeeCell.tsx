@@ -33,11 +33,17 @@ export const EmployeeCell: React.FC<EmployeeCellProps> = ({
         )}
       </div>
       <div className="flex flex-col text-left leading-tight min-w-0">
-        <span className="font-bold text-xs text-foreground truncate max-w-[160px]">
+        <span
+          className="font-bold text-xs text-foreground truncate max-w-[160px]"
+          title={name}
+        >
           {name}
         </span>
         {displaySubtitle && (
-          <span className="text-[11px] text-muted-foreground truncate max-w-[160px]">
+          <span
+            className="text-[11px] text-muted-foreground truncate max-w-[160px]"
+            title={displaySubtitle}
+          >
             {displaySubtitle}
           </span>
         )}

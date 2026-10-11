@@ -56,15 +56,23 @@ export const AdminOvertimePage: React.FC = () => {
         <div className="space-y-4">
           <div className="border border-border/70 rounded-2xl bg-card overflow-hidden shadow-xs">
             <div className="overflow-x-auto">
-              <table className="w-full text-xs text-left">
-                <thead className="bg-muted/40 border-b border-border/60 text-muted-foreground uppercase tracking-wider font-bold text-[11px]">
+              <table className="w-full text-xs text-left table-fixed min-w-[940px] border-collapse">
+                <colgroup>
+                  <col className="w-[80px]" />
+                  <col className="w-[230px]" />
+                  <col className="w-[110px]" />
+                  <col className="w-[150px]" />
+                  <col className="w-[230px]" />
+                  <col className="w-[140px]" />
+                </colgroup>
+                <thead className="bg-muted/40 border-b border-border/60 text-muted-foreground uppercase tracking-wider font-bold text-[11px] h-11">
                   <tr>
-                    <th className="py-3.5 px-4">ID</th>
-                    <th className="py-3.5 px-4">Employee</th>
-                    <th className="py-3.5 px-4">Shift Date</th>
-                    <th className="py-3.5 px-4">Duration</th>
-                    <th className="py-3.5 px-4">Permission Details</th>
-                    <th className="py-3.5 px-4 text-right">Action</th>
+                    <th className="py-3 px-4 font-bold align-middle">ID</th>
+                    <th className="py-3 px-4 font-bold align-middle">Employee</th>
+                    <th className="py-3 px-4 font-bold align-middle">Shift Date</th>
+                    <th className="py-3 px-4 font-bold align-middle">Duration</th>
+                    <th className="py-3 px-4 font-bold align-middle">Permission Details</th>
+                    <th className="py-3 px-4 font-bold align-middle text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/50">
@@ -81,31 +89,31 @@ export const AdminOvertimePage: React.FC = () => {
                     return (
                       <tr
                         key={recId}
-                        className="hover:bg-muted/30 transition-colors"
+                        className="hover:bg-muted/30 transition-colors h-14"
                       >
-                        <td className="py-3.5 px-4 font-mono text-muted-foreground">
+                        <td className="py-2.5 px-4 align-middle font-mono text-muted-foreground text-[11px]">
                           #{shortId}
                         </td>
-                        <td className="py-3.5 px-4">
+                        <td className="py-2.5 px-4 align-middle">
                           <EmployeeCell employee={emp} />
                         </td>
-                        <td className="py-3.5 px-4 font-semibold text-foreground whitespace-nowrap">
+                        <td className="py-2.5 px-4 align-middle font-mono font-semibold text-foreground whitespace-nowrap">
                           {rec.workDate}
                         </td>
-                        <td className="py-3.5 px-4">
-                          <span className="inline-flex items-center gap-1 font-bold text-primary px-2 py-0.5 rounded-md bg-primary/10">
+                        <td className="py-2.5 px-4 align-middle">
+                          <span className="inline-flex items-center gap-1 font-bold text-primary px-2 py-0.5 rounded-md bg-primary/10 text-[11px]">
                             +{reqMinutes} mins ({durationHours}h)
                           </span>
                         </td>
-                        <td className="py-3.5 px-4 max-w-xs">
+                        <td className="py-2.5 px-4 align-middle">
                           <p
-                            className="text-muted-foreground truncate"
+                            className="text-muted-foreground truncate max-w-[210px]"
                             title={rec.overtime?.reason || undefined}
                           >
                             {rec.overtime?.reason || 'Extra shift hours'}
                           </p>
                         </td>
-                        <td className="py-3.5 px-4 text-right">
+                        <td className="py-2.5 px-4 align-middle text-right">
                           <div className="inline-flex items-center gap-2">
                             <Button
                               size="sm"
@@ -113,7 +121,7 @@ export const AdminOvertimePage: React.FC = () => {
                                 setSelectedRecord(rec);
                                 setDialogOpen(true);
                               }}
-                              className="h-8 px-3 rounded-xl text-xs font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs gap-1"
+                              className="h-8 px-3 rounded-xl text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs gap-1"
                             >
                               <Check className="w-3.5 h-3.5" /> Approve
                             </Button>
@@ -138,16 +146,17 @@ export const AdminOvertimePage: React.FC = () => {
               </table>
             </div>
 
-            {meta && meta.totalPages > 1 && (
-              <div className="p-3 border-t border-border/70 flex items-center justify-between text-xs text-muted-foreground bg-muted/20">
+            {meta && (
+              <div className="p-3 border-t border-border/70 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground bg-muted/20">
                 <span>
-                  Showing Page {meta.page} of {meta.totalPages} ({meta.total} requests total)
+                  Showing Page <span className="font-semibold text-foreground">{meta.page}</span> of{' '}
+                  <span className="font-semibold text-foreground">{meta.totalPages}</span> ({meta.total} requests total)
                 </span>
                 <div className="flex items-center gap-2">
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-7 text-xs rounded-lg"
+                    className="h-8 text-xs rounded-xl gap-1 px-3"
                     disabled={meta.page <= 1}
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
                   >
@@ -156,7 +165,7 @@ export const AdminOvertimePage: React.FC = () => {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-7 text-xs rounded-lg"
+                    className="h-8 text-xs rounded-xl gap-1 px-3"
                     disabled={meta.page >= meta.totalPages}
                     onClick={() => setPage((p) => p + 1)}
                   >

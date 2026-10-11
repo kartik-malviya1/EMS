@@ -19,6 +19,7 @@ import settingsRoutes from './routes/settings.routes.js';
 import notificationRoutes from './routes/notification.routes.js';
 import invitationRoutes from './routes/invitation.routes.js';
 import adminEmailRoutes from './routes/adminEmail.routes.js';
+import leaveRoutes from './routes/leave.routes.js';
 
 const app = express();
 
@@ -30,11 +31,13 @@ if (env.NODE_ENV === 'production') {
 app.use(helmet());
 
 // CORS configuration
-const allowedOrigins = [
-  env.CLIENT_ORIGIN || 'http://localhost:5173',
-  'http://localhost:5173',
-  'http://127.0.0.1:5173',
-];
+const allowedOrigins = Array.from(
+  new Set([
+    env.CLIENT_ORIGIN,
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+  ].filter(Boolean))
+);
 app.use(
   cors({
     origin: allowedOrigins,
@@ -97,6 +100,9 @@ app.use('/api/admin/invitations', invitationRoutes);
 
 // Admin email verification endpoints
 app.use('/api/admin/email', adminEmailRoutes);
+
+// Leave management endpoints
+app.use('/api/leave', leaveRoutes);
 
 // 404 handler
 app.use(notFound);

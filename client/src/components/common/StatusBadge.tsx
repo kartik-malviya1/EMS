@@ -13,15 +13,16 @@ import type {
   WorkingStatus,
   VerificationStatus,
   OvertimeStatus,
+  LeaveStatus,
 } from '../../types/models';
 
-type BadgeType = 'working' | 'verification' | 'overtime';
+type BadgeType = 'working' | 'verification' | 'overtime' | 'leave';
 
 interface StatusBadgeProps {
   type?: BadgeType;
   kind?: BadgeType;
   size?: 'sm' | 'md' | 'lg';
-  status?: WorkingStatus | VerificationStatus | OvertimeStatus | string | null;
+  status?: WorkingStatus | VerificationStatus | OvertimeStatus | LeaveStatus | string | null;
   className?: string;
 }
 
@@ -214,6 +215,68 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
             )}
           >
             <span>None</span>
+          </span>
+        );
+    }
+  }
+
+  if (activeType === 'leave') {
+    switch (status) {
+      case 'approved':
+        return (
+          <span
+            data-testid="badge-leave-approved"
+            className={cn(
+              'inline-flex items-center gap-1.5 rounded-full font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800',
+              sizeClass,
+              className
+            )}
+          >
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            <span>Approved</span>
+          </span>
+        );
+      case 'rejected':
+        return (
+          <span
+            data-testid="badge-leave-rejected"
+            className={cn(
+              'inline-flex items-center gap-1.5 rounded-full font-semibold bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-300 dark:border-rose-800',
+              sizeClass,
+              className
+            )}
+          >
+            <XCircle className="w-3.5 h-3.5" />
+            <span>Rejected</span>
+          </span>
+        );
+      case 'cancelled':
+        return (
+          <span
+            data-testid="badge-leave-cancelled"
+            className={cn(
+              'inline-flex items-center gap-1.5 rounded-full font-semibold bg-slate-100 text-slate-700 dark:bg-slate-900/60 dark:text-slate-400 border border-slate-300 dark:border-slate-800',
+              sizeClass,
+              className
+            )}
+          >
+            <AlertTriangle className="w-3.5 h-3.5" />
+            <span>Cancelled</span>
+          </span>
+        );
+      case 'pending':
+      default:
+        return (
+          <span
+            data-testid="badge-leave-pending"
+            className={cn(
+              'inline-flex items-center gap-1.5 rounded-full font-semibold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 dark:border-amber-800',
+              sizeClass,
+              className
+            )}
+          >
+            <Clock className="w-3.5 h-3.5" />
+            <span>Pending</span>
           </span>
         );
     }

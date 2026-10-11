@@ -1,7 +1,8 @@
 import { User } from '../models/user.model.js';
 import { Attendance } from '../models/attendance.model.js';
+import { LeaveRequest } from '../models/leave.model.js';
 import { Notification } from '../models/notification.model.js';
-import { ROLES, NOTIFICATION_TYPES } from '../config/constants.js';
+import { ROLES, NOTIFICATION_TYPES, LEAVE_STATUS } from '../config/constants.js';
 import { getWorkDate, isWorkingDay } from '../utils/time.js';
 import { notifyMissedPunchIn } from '../services/notification.service.js';
 import { logger } from '../utils/logger.js';
@@ -9,6 +10,7 @@ import { logger } from '../utils/logger.js';
 /**
  * Pure job function: finds active employees who haven't punched in today (on working days)
  * and generates idempotent missed punch-in alerts.
+ * Excludes non-working days, admins, inactive users, and approved leaves.
  */
 export const runMissedPunchInJob = async (customDate = null, forceWorkingDay = false) => {
   const dateObj = customDate
@@ -37,6 +39,18 @@ export const runMissedPunchInJob = async (customDate = null, forceWorkingDay = f
     });
 
     if (!record) {
+      // Exclude employee if on approved leave
+      const onApprovedLeave = await LeaveRequest.findOne({
+        userId: employee._id,
+        status: LEAVE_STATUS.APPROVED,
+        startDate: { $lte: todayWorkDate },
+        endDate: { $gte: todayWorkDate },
+      });
+
+      if (onApprovedLeave) {
+        continue;
+      }
+
       const existing = await Notification.findOne({
         userId: employee._id,
         type: NOTIFICATION_TYPES.MISSED_PUNCH_IN,

@@ -56,15 +56,23 @@ export const ManagerOvertimePage: React.FC = () => {
         <div className="space-y-4">
           <div className="border border-border/70 rounded-2xl bg-card overflow-hidden shadow-xs">
             <div className="overflow-x-auto">
-              <table className="w-full text-xs text-left">
-                <thead className="bg-muted/40 border-b border-border/60 text-muted-foreground uppercase tracking-wider font-bold text-[11px]">
+              <table className="w-full text-xs text-left table-fixed min-w-[940px] border-collapse">
+                <colgroup>
+                  <col className="w-[80px]" />
+                  <col className="w-[230px]" />
+                  <col className="w-[110px]" />
+                  <col className="w-[150px]" />
+                  <col className="w-[230px]" />
+                  <col className="w-[140px]" />
+                </colgroup>
+                <thead className="bg-muted/40 border-b border-border/60 text-muted-foreground uppercase tracking-wider font-bold text-[11px] h-11">
                   <tr>
-                    <th className="py-3.5 px-4">ID</th>
-                    <th className="py-3.5 px-4">Employee</th>
-                    <th className="py-3.5 px-4">Shift Date</th>
-                    <th className="py-3.5 px-4">Duration</th>
-                    <th className="py-3.5 px-4">Permission Details</th>
-                    <th className="py-3.5 px-4 text-right">Action</th>
+                    <th className="py-3 px-4 font-bold align-middle">ID</th>
+                    <th className="py-3 px-4 font-bold align-middle">Employee</th>
+                    <th className="py-3 px-4 font-bold align-middle">Shift Date</th>
+                    <th className="py-3 px-4 font-bold align-middle">Duration</th>
+                    <th className="py-3 px-4 font-bold align-middle">Permission Details</th>
+                    <th className="py-3 px-4 font-bold align-middle text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/50">

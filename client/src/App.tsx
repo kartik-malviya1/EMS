@@ -12,24 +12,27 @@ import { RequestInvitationPage } from './pages/RequestInvitationPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { EmployeeDashboardPage } from './pages/employee/EmployeeDashboardPage';
 import { EmployeeHistoryPage } from './pages/employee/EmployeeHistoryPage';
+import { EmployeeLeavePage } from './pages/employee/EmployeeLeavePage';
 
-// Manager Pages (Phase 9)
+// Manager Pages
 import { ManagerDashboardPage } from './pages/manager/ManagerDashboardPage';
 import { ManagerTeamAttendancePage } from './pages/manager/ManagerTeamAttendancePage';
 import { ManagerReviewPage } from './pages/manager/ManagerReviewPage';
 import { ManagerOvertimePage } from './pages/manager/ManagerOvertimePage';
 import { ManagerReportsPage } from './pages/manager/ManagerReportsPage';
+import { ManagerLeavePage } from './pages/manager/ManagerLeavePage';
 
-// Admin Pages (Phase 9)
+// Admin Pages
 import { AdminDashboardPage } from './pages/admin/AdminDashboardPage';
 import { AdminUsersPage } from './pages/admin/AdminUsersPage';
 import { AdminAttendancePage } from './pages/admin/AdminAttendancePage';
 import { AdminReviewPage } from './pages/admin/AdminReviewPage';
 import { AdminOvertimePage } from './pages/admin/AdminOvertimePage';
 import { AdminReportsPage } from './pages/admin/AdminReportsPage';
+import { AdminLeavePage } from './pages/admin/AdminLeavePage';
 import { AdminSettingsPage } from './pages/admin/AdminSettingsPage';
 
-// Notifications Page (Phase 10)
+// Notifications Page
 import { NotificationsPage } from './pages/notifications/NotificationsPage';
 
 export function App() {
@@ -71,8 +74,16 @@ export function App() {
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/employee/leave"
+              element={
+                <ProtectedRoute allowedRoles={['employee', 'manager']}>
+                  <EmployeeLeavePage />
+                </ProtectedRoute>
+              }
+            />
 
-            {/* Manager Routes (Phase 9) */}
+            {/* Manager Routes */}
             <Route
               path="/manager"
               element={
@@ -113,8 +124,16 @@ export function App() {
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/manager/leave"
+              element={
+                <ProtectedRoute allowedRoles={['manager']}>
+                  <ManagerLeavePage />
+                </ProtectedRoute>
+              }
+            />
 
-            {/* Admin Routes (Phase 9) */}
+            {/* Admin Routes */}
             <Route
               path="/admin"
               element={
@@ -160,6 +179,14 @@ export function App() {
               element={
                 <ProtectedRoute allowedRoles={['admin']}>
                   <AdminReportsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/leave"
+              element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <AdminLeavePage />
                 </ProtectedRoute>
               }
             />

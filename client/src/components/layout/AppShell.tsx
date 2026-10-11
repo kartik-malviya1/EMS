@@ -13,6 +13,7 @@ import {
   Camera,
   ChevronDown,
   Calendar,
+  CalendarDays,
   Bell as BellIcon,
 } from 'lucide-react';
 import { useAppDispatch } from '../../app/hooks';
@@ -62,6 +63,7 @@ const getNavSections = (role?: Role): NavSection[] => {
           { label: 'User Directory', href: '/admin/users', icon: Users },
           { label: 'Verification Audits', href: '/admin/review', icon: ShieldCheck },
           { label: 'Overtime Approvals', href: '/admin/overtime', icon: Clock },
+          { label: 'Leave Oversight', href: '/admin/leave', icon: CalendarDays },
           { label: 'Reports & Export', href: '/admin/reports', icon: FileText },
         ],
       },
@@ -89,6 +91,7 @@ const getNavSections = (role?: Role): NavSection[] => {
         items: [
           { label: 'Verification Queue', href: '/manager/review', icon: ShieldCheck },
           { label: 'Overtime Queue', href: '/manager/overtime', icon: Clock },
+          { label: 'Leave Approvals', href: '/manager/leave', icon: CalendarDays },
           { label: 'Team Reports', href: '/manager/reports', icon: FileText },
         ],
       },
@@ -97,6 +100,7 @@ const getNavSections = (role?: Role): NavSection[] => {
         items: [
           { label: "Today's Punch", href: '/employee', icon: Camera },
           { label: 'My History', href: '/employee/history', icon: History },
+          { label: 'Leave & Time Off', href: '/employee/leave', icon: CalendarDays },
           { label: 'Notifications', href: '/notifications', icon: BellIcon },
         ],
       },
@@ -110,6 +114,7 @@ const getNavSections = (role?: Role): NavSection[] => {
       items: [
         { label: "Today's Punch", href: '/employee', icon: Clock },
         { label: 'My History', href: '/employee/history', icon: History },
+        { label: 'Leave & Time Off', href: '/employee/leave', icon: CalendarDays },
       ],
     },
     {

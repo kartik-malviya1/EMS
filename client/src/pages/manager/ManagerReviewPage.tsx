@@ -1,16 +1,16 @@
-import React, { useState } from 'react';
-import { PageHeader } from '../../components/common/PageHeader';
-import { Button } from '../../components/ui/button';
-import { StatusBadge } from '../../components/common/StatusBadge';
-import { Skeletons } from '../../components/common/Skeletons';
-import { EmptyState } from '../../components/common/EmptyState';
-import { ErrorState } from '../../components/common/ErrorState';
-import { AttendanceReviewDialog } from '../../components/review/AttendanceReviewDialog';
-import { EmployeeCell } from '../../components/common/EmployeeCell';
-import { AttendanceTimeline } from '../../components/common/AttendanceTimeline';
-import { useGetTeamAttendanceQuery } from '../../features/attendance/attendanceApi';
-import type { Attendance, User } from '../../types/models';
-import { ShieldCheck, ChevronLeft, ChevronRight, MapPin } from 'lucide-react';
+import React, { useState } from "react";
+import { PageHeader } from "../../components/common/PageHeader";
+import { Button } from "../../components/ui/button";
+import { StatusBadge } from "../../components/common/StatusBadge";
+import { Skeletons } from "../../components/common/Skeletons";
+import { EmptyState } from "../../components/common/EmptyState";
+import { ErrorState } from "../../components/common/ErrorState";
+import { AttendanceReviewDialog } from "../../components/review/AttendanceReviewDialog";
+import { EmployeeCell } from "../../components/common/EmployeeCell";
+import { AttendanceTimeline } from "../../components/common/AttendanceTimeline";
+import { useGetTeamAttendanceQuery } from "../../features/attendance/attendanceApi";
+import type { Attendance, User } from "../../types/models";
+import { ShieldCheck, ChevronLeft, ChevronRight, MapPin } from "lucide-react";
 
 export const ManagerReviewPage: React.FC = () => {
   const [page, setPage] = useState(1);
@@ -18,16 +18,15 @@ export const ManagerReviewPage: React.FC = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
 
   const { data, isLoading, isError, refetch } = useGetTeamAttendanceQuery({
-    verificationStatus: 'pending',
+    verificationStatus: "pending",
     page,
     limit: 20,
   });
 
   const meta = data?.meta;
 
-  // Verification is only reviewable when workingStatus !== 'in_progress'
   const reviewableRecords = (data?.data || []).filter(
-    (rec) => rec.workingStatus !== 'in_progress'
+    (rec) => rec.workingStatus !== "in_progress",
   );
 
   return (
@@ -63,39 +62,59 @@ export const ManagerReviewPage: React.FC = () => {
         <div className="space-y-4">
           <div className="border border-border/70 rounded-2xl bg-card overflow-hidden shadow-xs">
             <div className="overflow-x-auto">
-              <table className="w-full text-xs text-left">
-                <thead className="bg-muted/40 border-b border-border/60 text-muted-foreground uppercase tracking-wider font-bold text-[11px]">
+              <table className="w-full text-xs text-left table-fixed min-w-[940px] border-collapse">
+                <colgroup>
+                  <col className="w-[230px]" />
+                  <col className="w-[110px]" />
+                  <col className="w-[180px]" />
+                  <col className="w-[180px]" />
+                  <col className="w-[110px]" />
+                  <col className="w-[130px]" />
+                </colgroup>
+                <thead className="bg-muted/40 border-b border-border/60 text-muted-foreground uppercase tracking-wider font-bold text-[11px] h-11">
                   <tr>
-                    <th className="py-3.5 px-4">Employee</th>
-                    <th className="py-3.5 px-4">Work Date</th>
-                    <th className="py-3.5 px-4">Clock-in & Out</th>
-                    <th className="py-3.5 px-4">Geofence Location</th>
-                    <th className="py-3.5 px-4">Status</th>
-                    <th className="py-3.5 px-4 text-right">Action</th>
+                    <th className="py-3 px-4 font-bold align-middle">
+                      Employee
+                    </th>
+                    <th className="py-3 px-4 font-bold align-middle">
+                      Work Date
+                    </th>
+                    <th className="py-3 px-4 font-bold align-middle">
+                      Clock-in & Out
+                    </th>
+                    <th className="py-3 px-4 font-bold align-middle">
+                      Geofence Location
+                    </th>
+                    <th className="py-3 px-4 font-bold align-middle">Status</th>
+                    <th className="py-3 px-4 font-bold align-middle text-right">
+                      Action
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/50">
                   {reviewableRecords.map((rec) => {
                     const emp =
-                      typeof rec.employeeId === 'object' && rec.employeeId !== null
+                      typeof rec.employeeId === "object" &&
+                      rec.employeeId !== null
                         ? (rec.employeeId as User)
                         : null;
-                    const recId = rec.id || rec._id || '';
-                    const dist = rec.punchIn?.location?.distanceFromOfficeMeters;
+                    const recId = rec.id || rec._id || "";
+                    const dist =
+                      rec.punchIn?.location?.distanceFromOfficeMeters;
                     const inGeofence = rec.punchIn?.location?.withinGeofence;
 
                     return (
                       <tr
                         key={recId}
-                        className="hover:bg-muted/30 transition-colors"
+                        className="hover:bg-muted/30 transition-colors h-14"
                       >
-                        <td className="py-3.5 px-4">
+                        <td className="py-2.5 px-4 align-middle">
                           <EmployeeCell employee={emp} />
                         </td>
-                        <td className="py-3.5 px-4 font-semibold text-foreground whitespace-nowrap">
+                        <td className="py-2.5 px-4 align-middle font-mono font-semibold text-foreground whitespace-nowrap">
                           {rec.workDate}
                         </td>
-                        <td className="py-3.5 px-4">
+                        <td className="py-2.5 px-4 align-middle">
                           <AttendanceTimeline
                             punchInAt={rec.punchIn?.at}
                             punchOutAt={rec.punchOut?.at}
@@ -103,32 +122,33 @@ export const ManagerReviewPage: React.FC = () => {
                             workingStatus={rec.workingStatus}
                           />
                         </td>
-                        <td className="py-3.5 px-4">
-                          <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-muted/60 border border-border/60">
+                        <td className="py-2.5 px-4 align-middle">
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-muted/60 border border-border/60">
                             <MapPin className="w-3 h-3 text-primary shrink-0" />
                             <span>
-                              {dist != null ? `${Math.round(dist)}m` : '—'}
-                              {inGeofence ? ' (In Office)' : ' (Outside)'}
+                              {dist != null ? `${Math.round(dist)}m` : "—"}
+                              {inGeofence ? " (In Office)" : " (Outside)"}
                             </span>
                           </div>
                         </td>
-                        <td className="py-3.5 px-4">
+                        <td className="py-2.5 px-4 align-middle">
                           <StatusBadge
                             kind="verification"
-                            status={rec.verification?.status || 'pending'}
+                            status={rec.verification?.status || "pending"}
                             size="sm"
                           />
                         </td>
-                        <td className="py-3.5 px-4 text-right">
+                        <td className="py-2.5 px-4 align-middle text-right">
                           <Button
                             size="sm"
                             onClick={() => {
                               setSelectedRecord(rec);
                               setDialogOpen(true);
                             }}
-                            className="h-8 px-3 rounded-xl text-xs font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs gap-1"
+                            className="h-8 px-3 rounded-xl text-xs font-semibold gap-1.5 shadow-sm"
                           >
-                            <ShieldCheck className="w-3.5 h-3.5" /> Audit & Verify
+                            <ShieldCheck className="w-3.5 h-3.5" /> Audit &
+                            Verify
                           </Button>
                         </td>
                       </tr>
@@ -137,35 +157,43 @@ export const ManagerReviewPage: React.FC = () => {
                 </tbody>
               </table>
             </div>
-          </div>
 
-          {meta && meta.totalPages > 1 && (
-            <div className="p-3 border border-border/70 rounded-xl flex items-center justify-between text-xs text-muted-foreground bg-card">
-              <span>
-                Page {meta.page} of {meta.totalPages} ({meta.total} records)
-              </span>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-xs"
-                  disabled={meta.page <= 1}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                >
-                  <ChevronLeft className="w-3.5 h-3.5" /> Previous
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-xs"
-                  disabled={meta.page >= meta.totalPages}
-                  onClick={() => setPage((p) => p + 1)}
-                >
-                  Next <ChevronRight className="w-3.5 h-3.5" />
-                </Button>
+            {meta && (
+              <div className="p-3 border-t border-border/70 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground bg-muted/20">
+                <span>
+                  Showing Page{" "}
+                  <span className="font-semibold text-foreground">
+                    {meta.page}
+                  </span>{" "}
+                  of{" "}
+                  <span className="font-semibold text-foreground">
+                    {meta.totalPages}
+                  </span>{" "}
+                  ({meta.total} records total)
+                </span>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-xs rounded-xl gap-1 px-3"
+                    disabled={meta.page <= 1}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" /> Previous
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-xs rounded-xl gap-1 px-3"
+                    disabled={meta.page >= meta.totalPages}
+                    onClick={() => setPage((p) => p + 1)}
+                  >
+                    Next <ChevronRight className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       )}
 

@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
+import { ACCOUNT_STATUS } from '../config/constants.js';
 import { User } from '../models/user.model.js';
 import { ApiError } from '../utils/ApiError.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
@@ -35,7 +36,12 @@ export const authenticate = asyncHandler(async (req, _res, next) => {
     throw new ApiError(401, 'UNAUTHENTICATED', 'User no longer exists');
   }
 
-  if (!user.isActive || user.accountStatus === 'suspended' || user.accountStatus === 'deactivated' || user.accountStatus === 'invited') {
+  if (
+    !user.isActive ||
+    user.accountStatus === ACCOUNT_STATUS.SUSPENDED ||
+    user.accountStatus === ACCOUNT_STATUS.DEACTIVATED ||
+    user.accountStatus === ACCOUNT_STATUS.INVITED
+  ) {
     throw new ApiError(403, 'ACCOUNT_INACTIVE', 'User account is deactivated');
   }
 

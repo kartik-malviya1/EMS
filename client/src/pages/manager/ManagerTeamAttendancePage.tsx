@@ -24,6 +24,7 @@ import {
   Download,
   Search,
   RotateCcw,
+  RefreshCw,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
@@ -64,7 +65,7 @@ export const ManagerTeamAttendancePage: React.FC = () => {
     limit: 15,
   };
 
-  const { data, isLoading, isError, refetch } =
+  const { data, isLoading, isError, isFetching, refetch } =
     useGetTeamAttendanceQuery(queryParams);
 
   const handleTabChange = (tabId: string) => {
@@ -100,9 +101,9 @@ export const ManagerTeamAttendancePage: React.FC = () => {
   const meta = data?.meta;
 
   const tabs: TabItem[] = [
-    { id: 'all', label: 'All Records', count: meta?.total },
-    { id: 'pending', label: 'Pending Verification' },
-    { id: 'overtime', label: 'Overtime Requests' },
+    { id: 'all', label: 'All Records', count: activeTab === 'all' ? meta?.total : undefined },
+    { id: 'pending', label: 'Pending Verification', count: activeTab === 'pending' ? meta?.total : undefined, highlightCount: true },
+    { id: 'overtime', label: 'Overtime Requests', count: activeTab === 'overtime' ? meta?.total : undefined },
   ];
 
   return (
@@ -116,7 +117,7 @@ export const ManagerTeamAttendancePage: React.FC = () => {
         </div>
         <div className="flex items-center gap-2">
           <Link to="/manager/reports">
-            <Button variant="outline" size="sm" className="gap-1.5 h-9 rounded-xl text-xs font-semibold">
+            <Button variant="outline" size="sm" className="gap-1.5 h-9 rounded-xl text-xs font-semibold hover:border-primary hover:text-primary transition-all">
               <Download className="w-3.5 h-3.5" /> Export Report
             </Button>
           </Link>
@@ -131,7 +132,7 @@ export const ManagerTeamAttendancePage: React.FC = () => {
       />
 
       {/* Search and Filter Controls Toolbar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-1">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pt-1">
         <div className="relative flex-1 max-w-sm">
           <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
           <Input
@@ -188,15 +189,27 @@ export const ManagerTeamAttendancePage: React.FC = () => {
             variant="ghost"
             size="sm"
             onClick={handleResetFilters}
-            className="h-9 text-xs gap-1 rounded-xl"
+            className="h-9 px-2 text-xs gap-1 rounded-xl text-muted-foreground hover:text-foreground"
             title="Reset filters"
           >
             <RotateCcw className="w-3.5 h-3.5" />
           </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => refetch()}
+            disabled={isLoading || isFetching}
+            className="h-9 px-3 text-xs gap-1.5 rounded-xl border-border/70 hover:bg-muted/60"
+            title="Refresh records"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin text-primary' : ''}`} />
+            <span className="hidden sm:inline">Refresh</span>
+          </Button>
         </div>
       </div>
 
-      {/* Attendance Table with Transition Status */}
+      {/* Attendance Table with Stable Fixed Column Widths across Tabs */}
       <section
         aria-busy={isPending}
         className={`space-y-4 transition-opacity duration-200 ${
@@ -206,123 +219,132 @@ export const ManagerTeamAttendancePage: React.FC = () => {
         {isLoading ? (
           <Skeletons count={5} />
         ) : isError ? (
-        <ErrorState
-          title="Could not load team attendance records"
-          message="An error occurred while fetching team attendance. Please try again."
-          onRetry={refetch}
-        />
-      ) : records.length === 0 ? (
-        <EmptyState
-          title="No team attendance records found"
-          description="Try adjusting your filters or date range to find matching attendance records."
-        />
-      ) : (
-        <div className="space-y-4">
-          <div className="border border-border/70 rounded-2xl bg-card overflow-hidden shadow-xs">
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs text-left">
-                <thead className="bg-muted/40 border-b border-border/60 text-muted-foreground uppercase tracking-wider font-bold text-[11px]">
-                  <tr>
-                    <th className="py-3.5 px-4">Employee</th>
-                    <th className="py-3.5 px-4">Work Date</th>
-                    <th className="py-3.5 px-4">Clock-in & Out</th>
-                    <th className="py-3.5 px-4">Verification</th>
-                    <th className="py-3.5 px-4">Overtime</th>
-                    <th className="py-3.5 px-4 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/50">
-                  {records.map((rec) => {
-                    const emp =
-                      typeof rec.employeeId === 'object' &&
-                      rec.employeeId !== null
-                        ? (rec.employeeId as User)
-                        : null;
+          <ErrorState
+            title="Could not load team attendance records"
+            message="An error occurred while fetching team attendance. Please try again."
+            onRetry={refetch}
+          />
+        ) : records.length === 0 ? (
+          <EmptyState
+            title="No team attendance records found"
+            description="Try adjusting your filters or date range to find matching attendance records."
+          />
+        ) : (
+          <div className="space-y-4">
+            <div className="border border-border/70 rounded-2xl bg-card overflow-hidden shadow-xs">
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs text-left table-fixed min-w-[900px] border-collapse">
+                  <colgroup>
+                    <col className="w-[240px]" />
+                    <col className="w-[110px]" />
+                    <col className="w-[180px]" />
+                    <col className="w-[130px]" />
+                    <col className="w-[130px]" />
+                    <col className="w-[90px]" />
+                  </colgroup>
+                  <thead className="bg-muted/40 border-b border-border/60 text-muted-foreground uppercase tracking-wider font-bold text-[11px] h-11">
+                    <tr>
+                      <th className="py-3 px-4 font-bold align-middle">Employee</th>
+                      <th className="py-3 px-4 font-bold align-middle">Work Date</th>
+                      <th className="py-3 px-4 font-bold align-middle">Clock-in & Out</th>
+                      <th className="py-3 px-4 font-bold align-middle">Verification</th>
+                      <th className="py-3 px-4 font-bold align-middle">Overtime</th>
+                      <th className="py-3 px-4 font-bold align-middle text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/50">
+                    {records.map((rec) => {
+                      const emp =
+                        typeof rec.employeeId === 'object' &&
+                        rec.employeeId !== null
+                          ? (rec.employeeId as User)
+                          : null;
 
-                    return (
-                      <tr
-                        key={rec.id || rec._id}
-                        className="hover:bg-muted/30 transition-colors"
-                      >
-                        <td className="py-3 px-4">
-                          <EmployeeCell employee={emp} />
-                        </td>
-                        <td className="py-3 px-4 font-semibold text-foreground whitespace-nowrap">
-                          {rec.workDate}
-                        </td>
-                        <td className="py-3 px-4">
-                          <AttendanceTimeline
-                            punchInAt={rec.punchIn?.at}
-                            punchOutAt={rec.punchOut?.at}
-                            workedMinutes={rec.workedMinutes}
-                            workingStatus={rec.workingStatus}
-                          />
-                        </td>
-                        <td className="py-3 px-4">
-                          <StatusBadge
-                            kind="verification"
-                            status={rec.verification?.status}
-                            size="sm"
-                          />
-                        </td>
-                        <td className="py-3 px-4">
-                          <StatusBadge
-                            kind="overtime"
-                            status={rec.overtime?.status}
-                            size="sm"
-                          />
-                        </td>
-                        <td className="py-3 px-4 text-right">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedRecord(rec);
-                              setDialogOpen(true);
-                            }}
-                            className="h-8 rounded-xl text-xs font-semibold hover:border-primary hover:text-primary transition-all"
-                          >
-                            Review
-                          </Button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Pagination footer */}
-            {meta && meta.totalPages > 1 && (
-              <div className="p-3 border-t border-border/70 flex items-center justify-between text-xs text-muted-foreground bg-muted/20">
-                <span>
-                  Showing Page {meta.page} of {meta.totalPages} ({meta.total} records total)
-                </span>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7 text-xs"
-                    disabled={meta.page <= 1}
-                    onClick={() => startTransition(() => setPage((p) => Math.max(1, p - 1)))}
-                  >
-                    <ChevronLeft className="w-3.5 h-3.5" /> Previous
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7 text-xs"
-                    disabled={meta.page >= meta.totalPages}
-                    onClick={() => startTransition(() => setPage((p) => p + 1))}
-                  >
-                    Next <ChevronRight className="w-3.5 h-3.5" />
-                  </Button>
-                </div>
+                      return (
+                        <tr
+                          key={rec.id || rec._id}
+                          className="hover:bg-muted/30 transition-colors h-14"
+                        >
+                          <td className="py-2.5 px-4 align-middle">
+                            <EmployeeCell employee={emp} />
+                          </td>
+                          <td className="py-2.5 px-4 align-middle font-mono font-semibold text-foreground whitespace-nowrap">
+                            {rec.workDate}
+                          </td>
+                          <td className="py-2.5 px-4 align-middle">
+                            <AttendanceTimeline
+                              punchInAt={rec.punchIn?.at}
+                              punchOutAt={rec.punchOut?.at}
+                              workedMinutes={rec.workedMinutes}
+                              workingStatus={rec.workingStatus}
+                            />
+                          </td>
+                          <td className="py-2.5 px-4 align-middle">
+                            <StatusBadge
+                              kind="verification"
+                              status={rec.verification?.status}
+                              size="sm"
+                            />
+                          </td>
+                          <td className="py-2.5 px-4 align-middle">
+                            <StatusBadge
+                              kind="overtime"
+                              status={rec.overtime?.status}
+                              size="sm"
+                            />
+                          </td>
+                          <td className="py-2.5 px-4 align-middle text-right">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedRecord(rec);
+                                setDialogOpen(true);
+                              }}
+                              className="h-8 px-3 rounded-xl text-xs font-semibold hover:border-primary hover:text-primary transition-all"
+                            >
+                              Review
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
-            )}
+
+              {/* Pagination footer */}
+              {meta && (
+                <div className="p-3 border-t border-border/70 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground bg-muted/20">
+                  <span>
+                    Showing Page <span className="font-semibold text-foreground">{meta.page}</span> of{' '}
+                    <span className="font-semibold text-foreground">{meta.totalPages}</span> ({meta.total} records total)
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 text-xs rounded-xl gap-1 px-3"
+                      disabled={meta.page <= 1}
+                      onClick={() => startTransition(() => setPage((p) => Math.max(1, p - 1)))}
+                    >
+                      <ChevronLeft className="w-3.5 h-3.5" /> Previous
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 text-xs rounded-xl gap-1 px-3"
+                      disabled={meta.page >= meta.totalPages}
+                      onClick={() => startTransition(() => setPage((p) => p + 1))}
+                    >
+                      Next <ChevronRight className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        )}
       </section>
 
       {/* Review Dialog */}

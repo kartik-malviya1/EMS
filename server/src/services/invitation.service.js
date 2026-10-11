@@ -656,20 +656,34 @@ export const revokeInvitation = async ({ adminUser, invitationId, req }) => {
     return toSafeInvitation(invitation);
   }
 
-  invitation.status = INVITATION_STATUS.REVOKED;
-  invitation.revokedAt = new Date();
-  await invitation.save();
+  const updatedInvitation = await Invitation.findOneAndUpdate(
+    {
+      _id: invitationId,
+      status: { $ne: INVITATION_STATUS.ACCEPTED },
+    },
+    {
+      $set: {
+        status: INVITATION_STATUS.REVOKED,
+        revokedAt: new Date(),
+      },
+    },
+    { returnDocument: 'after' }
+  );
+
+  if (!updatedInvitation) {
+    throw new ApiError(400, 'CANNOT_REVOKE_ACCEPTED', 'Accepted invitations cannot be revoked');
+  }
 
   await logAuditEvent({
     actor: adminUser,
     action: AUDIT_ACTIONS.INVITATION_REVOKED,
-    targetUser: { _id: invitation.userId, email: invitation.email },
-    invitationId: invitation._id,
+    targetUser: { _id: updatedInvitation.userId, email: updatedInvitation.email },
+    invitationId: updatedInvitation._id,
     metadata: {},
     req,
   });
 
-  return toSafeInvitation(invitation);
+  return toSafeInvitation(updatedInvitation);
 };
 
 /**
@@ -791,6 +805,32 @@ export const acceptInvitation = async ({ rawToken, password, req }) => {
     );
   }
 
+  // Atomic state transition: ensure status is still PENDING at time of acceptance
+  const updatedInvitation = await Invitation.findOneAndUpdate(
+    {
+      _id: invitation._id,
+      status: INVITATION_STATUS.PENDING,
+    },
+    {
+      $set: {
+        status: INVITATION_STATUS.ACCEPTED,
+        acceptedAt: new Date(),
+      },
+    },
+    { returnDocument: 'after' }
+  );
+
+  if (!updatedInvitation) {
+    const current = await Invitation.findById(invitation._id);
+    if (current?.status === INVITATION_STATUS.REVOKED) {
+      throw new ApiError(410, 'INVITATION_REVOKED', 'This invitation has been revoked by an administrator');
+    }
+    if (current?.status === INVITATION_STATUS.ACCEPTED) {
+      throw new ApiError(409, 'INVITATION_ALREADY_ACCEPTED', 'This invitation has already been accepted. Please sign in.');
+    }
+    throw new ApiError(410, 'INVITATION_EXPIRED', 'This invitation link has expired. Please contact your administrator.');
+  }
+
   const passwordHash = await User.hashPassword(password);
 
   user.passwordHash = passwordHash;
@@ -798,15 +838,11 @@ export const acceptInvitation = async ({ rawToken, password, req }) => {
   user.isActive = true;
   await user.save();
 
-  invitation.status = INVITATION_STATUS.ACCEPTED;
-  invitation.acceptedAt = new Date();
-  await invitation.save();
-
   await logAuditEvent({
     actor: { _id: user._id, email: user.email, role: user.role },
     action: AUDIT_ACTIONS.INVITATION_ACCEPTED,
     targetUser: user,
-    invitationId: invitation._id,
+    invitationId: updatedInvitation._id,
     metadata: { role: user.role },
     req,
   });

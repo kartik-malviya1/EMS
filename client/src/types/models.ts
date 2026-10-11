@@ -8,8 +8,7 @@ export type OvertimeStatus =
   | 'not_requested'
   | 'pending'
   | 'approved'
-  | 'rejected'
-  | 'none';
+  | 'rejected';
 
 export type AccountStatus = 'invited' | 'active' | 'suspended' | 'deactivated';
 
@@ -207,9 +206,18 @@ export interface ReportRow {
   workedHours: number | null;
   workingStatus: WorkingStatus;
   verificationStatus: VerificationStatus;
+  verificationRemarks?: string | null;
+  verifiedBy?: string | null;
+  verificationAt?: string | null;
   overtimeStatus: OvertimeStatus;
+  overtimeMinutes?: number;
+  overtimeHours?: number;
+  overtimeReason?: string | null;
+  overtimeRemarks?: string | null;
   hasPunchInSelfie: boolean;
   hasPunchOutSelfie: boolean;
+  punchInSelfieUrl?: string | null;
+  punchOutSelfieUrl?: string | null;
 }
 
 export interface PaginationMeta {
@@ -217,6 +225,30 @@ export interface PaginationMeta {
   limit: number;
   total: number;
   totalPages: number;
+}
+
+export type LeaveType = 'annual' | 'sick' | 'casual' | 'unpaid';
+export type LeaveStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
+export type HalfDayPeriod = 'first_half' | 'second_half';
+
+export interface LeaveRequest {
+  _id: string;
+  id?: string;
+  userId: string | User;
+  leaveType: LeaveType;
+  startDate: string;
+  endDate: string;
+  isHalfDay: boolean;
+  halfDayPeriod?: HalfDayPeriod | null;
+  daysCount: number;
+  reason: string;
+  status: LeaveStatus;
+  reviewedBy?: string | User | null;
+  reviewedAt?: string | null;
+  reviewerRemarks?: string;
+  appliedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface ApiResponse<T> {
