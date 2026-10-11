@@ -10,6 +10,7 @@ export interface UserQueryParams {
   role?: Role | '';
   search?: string;
   isActive?: boolean | string;
+  accountStatus?: string;
   managerId?: string;
   page?: number;
   limit?: number;
@@ -24,6 +25,10 @@ export interface UpdateUserPayload {
   id: string;
   name?: string;
   role?: Role;
+  employeeId?: string;
+  department?: string;
+  designation?: string;
+  accountStatus?: 'invited' | 'active' | 'suspended' | 'deactivated';
   managerId?: string | null;
   isActive?: boolean;
 }

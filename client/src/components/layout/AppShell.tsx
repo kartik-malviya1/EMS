@@ -210,25 +210,25 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({
 
   const getBreadcrumbs = (path: string): string[] => {
     if (path.startsWith('/admin')) {
-      if (path === '/admin') return ['AMS', 'HR Management', 'Admin Dashboard'];
-      if (path.startsWith('/admin/attendance')) return ['AMS', 'HR Management', 'Employee', 'Attendance'];
-      if (path.startsWith('/admin/users')) return ['AMS', 'HR Management', 'Directory', 'Users'];
-      if (path.startsWith('/admin/review')) return ['AMS', 'HR Management', 'Audits', 'Verification Review'];
-      if (path.startsWith('/admin/overtime')) return ['AMS', 'HR Management', 'Approvals', 'Overtime Requests'];
-      if (path.startsWith('/admin/reports')) return ['AMS', 'HR Management', 'Analytics', 'Daily Reports'];
-      if (path.startsWith('/admin/settings')) return ['AMS', 'Settings', 'Geofence Perimeter'];
+      if (path === '/admin') return ['EMS', 'Admin', 'Dashboard'];
+      if (path.startsWith('/admin/attendance')) return ['EMS', 'Admin', 'System Attendance'];
+      if (path.startsWith('/admin/users')) return ['EMS', 'Admin', 'User Directory'];
+      if (path.startsWith('/admin/review')) return ['EMS', 'Admin', 'Verification Audits'];
+      if (path.startsWith('/admin/overtime')) return ['EMS', 'Admin', 'Overtime Approvals'];
+      if (path.startsWith('/admin/reports')) return ['EMS', 'Admin', 'Reports'];
+      if (path.startsWith('/admin/settings')) return ['EMS', 'Admin', 'Geofence Settings'];
     }
     if (path.startsWith('/manager')) {
-      if (path === '/manager') return ['AMS', 'Manager', 'Team Overview'];
-      if (path.startsWith('/manager/attendance')) return ['AMS', 'Manager', 'Team Attendance'];
-      if (path.startsWith('/manager/review')) return ['AMS', 'Manager', 'Verification Queue'];
-      if (path.startsWith('/manager/overtime')) return ['AMS', 'Manager', 'Overtime Queue'];
-      if (path.startsWith('/manager/reports')) return ['AMS', 'Manager', 'Team Reports'];
+      if (path === '/manager') return ['EMS', 'Manager', 'Team Overview'];
+      if (path.startsWith('/manager/attendance')) return ['EMS', 'Manager', 'Team Attendance'];
+      if (path.startsWith('/manager/review')) return ['EMS', 'Manager', 'Verification Queue'];
+      if (path.startsWith('/manager/overtime')) return ['EMS', 'Manager', 'Overtime Queue'];
+      if (path.startsWith('/manager/reports')) return ['EMS', 'Manager', 'Team Reports'];
     }
-    if (path === '/employee') return ['AMS', 'Employee', "Today's Punch"];
-    if (path === '/employee/history') return ['AMS', 'Employee', 'Attendance History'];
-    if (path === '/notifications') return ['AMS', 'Notifications'];
-    return ['AMS', 'Portal'];
+    if (path === '/employee') return ['EMS', 'Employee', "Today's Punch"];
+    if (path === '/employee/history') return ['EMS', 'Employee', 'History'];
+    if (path === '/notifications') return ['EMS', 'Notifications'];
+    return ['EMS', 'Portal'];
   };
 
   const breadcrumbs = getBreadcrumbs(location.pathname);
@@ -241,11 +241,45 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({
         : 'Staff Employee';
 
   return (
-    <div className="h-screen h-[100dvh] flex flex-col bg-background text-foreground overflow-hidden">
-      {/* Top Header */}
-      <header className="shrink-0 w-full border-b border-border/70 bg-card/90 backdrop-blur-md z-30">
-        <div className="flex h-14 sm:h-16 items-center justify-between px-4 sm:px-6">
-          <div className="flex items-center gap-4">
+    <div className="h-screen h-[100dvh] flex bg-background text-foreground overflow-hidden">
+      {/* Desktop Sidebar (Full-height left column) */}
+      <aside className="hidden md:flex flex-col w-64 border-r border-border/70 bg-card shrink-0 h-full overflow-hidden">
+        {/* Sidebar Brand Header */}
+        <div className="h-14 sm:h-16 shrink-0 flex items-center px-5 border-b border-border/60">
+          <Link to="/" className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-tr from-primary to-indigo-600 text-primary-foreground font-black shadow-xs text-sm">
+              E
+            </div>
+            <div className="flex flex-col leading-none">
+              <span className="font-extrabold text-sm tracking-tight text-foreground">
+                EMS
+              </span>
+              <span className="text-[10px] text-muted-foreground font-medium tracking-wide">
+                Attendance Management
+              </span>
+            </div>
+          </Link>
+        </div>
+
+        {/* Navigation links with smooth scroll container */}
+        <div className="flex-1 overflow-y-auto min-h-0 py-3">
+          <NavSectionGroup
+            sections={navSections}
+            pathname={location.pathname}
+          />
+        </div>
+
+        {/* Sidebar Footer with Theme Switch */}
+        <div className="p-3 border-t border-border/60 bg-card/50 shrink-0">
+          <ThemeSegmentedSwitch />
+        </div>
+      </aside>
+
+      {/* Main Content Area (Right column) */}
+      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+        {/* Top Header */}
+        <header className="h-14 sm:h-16 shrink-0 border-b border-border/70 bg-card/80 backdrop-blur-md z-20 flex items-center justify-between px-4 sm:px-6">
+          <div className="flex items-center gap-3">
             {/* Mobile Sheet Trigger */}
             <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
               <SheetTrigger asChild>
@@ -262,10 +296,10 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({
                 <div className="flex flex-col min-h-0 flex-1">
                   <SheetHeader className="p-4 border-b shrink-0">
                     <SheetTitle className="flex items-center gap-2.5">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary text-primary-foreground font-extrabold">
-                        A
+                      <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary text-primary-foreground font-extrabold text-sm">
+                        E
                       </div>
-                      <span className="font-extrabold tracking-tight">Attendance System</span>
+                      <span className="font-extrabold tracking-tight">EMS</span>
                     </SheetTitle>
                   </SheetHeader>
                   <div className="flex-1 overflow-y-auto min-h-0">
@@ -282,13 +316,13 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({
               </SheetContent>
             </Sheet>
 
-            {/* Brand Logo on mobile / small screens */}
+            {/* Brand Logo on mobile */}
             <Link
               to="/"
               className="flex md:hidden items-center gap-2 font-bold tracking-tight text-sm text-foreground hover:opacity-90 transition-opacity"
             >
-              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-tr from-primary to-indigo-600 text-primary-foreground font-extrabold shadow-xs">
-                A
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-tr from-primary to-indigo-600 text-primary-foreground font-extrabold shadow-xs text-sm">
+                E
               </div>
               <span className="font-extrabold tracking-tight">EMS</span>
             </Link>
@@ -405,45 +439,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({
               </DropdownMenu>
             )}
           </div>
-        </div>
-      </header>
-
-      {/* Main Layout Container with Fixed Boundaries */}
-      <div className="flex-1 flex min-h-0 overflow-hidden">
-        {/* Desktop Sidebar */}
-        <aside className="hidden md:flex flex-col w-64 border-r border-border/70 bg-card/60 backdrop-blur-sm shrink-0 justify-between h-full overflow-hidden">
-          <div className="flex flex-col min-h-0 flex-1">
-            {/* Sidebar Brand Header */}
-            <div className="h-14 sm:h-16 shrink-0 flex items-center justify-between px-5 border-b border-border/50">
-              <Link to="/" className="flex items-center gap-2.5">
-                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-tr from-primary to-indigo-600 text-primary-foreground font-black shadow-xs">
-                  A
-                </div>
-                <div className="flex flex-col leading-none">
-                  <span className="font-extrabold text-sm tracking-tight text-foreground">
-                    Attendance System
-                  </span>
-                  <span className="text-[10px] text-primary font-bold tracking-wider uppercase">
-                    Workforce EMS
-                  </span>
-                </div>
-              </Link>
-            </div>
-
-            {/* Navigation links with smooth scroll container */}
-            <div className="flex-1 overflow-y-auto min-h-0 py-2">
-              <NavSectionGroup
-                sections={navSections}
-                pathname={location.pathname}
-              />
-            </div>
-          </div>
-
-          {/* Sidebar Footer with Segmented Light/Dark Switch */}
-          <div className="p-3 border-t border-border/60 bg-card/50 shrink-0">
-            <ThemeSegmentedSwitch />
-          </div>
-        </aside>
+        </header>
 
         {/* Dedicated Scrollable Page Content Container */}
         <main className="flex-1 min-w-0 h-full overflow-y-auto overflow-x-hidden p-4 sm:p-6 lg:p-8">

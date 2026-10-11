@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useTransition } from 'react';
 import { PageHeader } from '../../components/common/PageHeader';
 import { Card, CardContent } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
@@ -31,6 +31,7 @@ export const ManagerReportsPage: React.FC = () => {
   const [userId, setUserId] = useState('');
   const [page, setPage] = useState(1);
   const [isExporting, setIsExporting] = useState(false);
+  const [isPending, startTransition] = useTransition();
 
   const { data: teamMembers = [] } = useGetTeamUsersQuery();
 
@@ -45,6 +46,30 @@ export const ManagerReportsPage: React.FC = () => {
 
   const { data, isLoading, isError, refetch } =
     useGetDailyReportQuery(queryParams);
+
+  const handlePageChange = (newPage: number) => {
+    startTransition(() => {
+      setPage(newPage);
+    });
+  };
+
+  const handleMemberChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const val = e.target.value;
+    startTransition(() => {
+      setUserId(val);
+      setPage(1);
+    });
+  };
+
+  const handleResetFilters = () => {
+    startTransition(() => {
+      setDate('');
+      setFrom('');
+      setTo('');
+      setUserId('');
+      setPage(1);
+    });
+  };
 
   const handleExport = async (format: 'xlsx' | 'pdf') => {
     try {
@@ -66,14 +91,6 @@ export const ManagerReportsPage: React.FC = () => {
     } finally {
       setIsExporting(false);
     }
-  };
-
-  const handleResetFilters = () => {
-    setDate('');
-    setFrom('');
-    setTo('');
-    setUserId('');
-    setPage(1);
   };
 
   const rows = data?.rows || [];
@@ -170,10 +187,7 @@ export const ManagerReportsPage: React.FC = () => {
               </label>
               <select
                 value={userId}
-                onChange={(e) => {
-                  setUserId(e.target.value);
-                  setPage(1);
-                }}
+                onChange={handleMemberChange}
                 className="w-full h-9 rounded-xl border border-input bg-card px-2.5 text-xs font-medium focus:ring-2 focus:ring-primary/20 focus:border-primary"
               >
                 <option value="">All Members ({teamMembers.length})</option>
@@ -276,7 +290,10 @@ export const ManagerReportsPage: React.FC = () => {
           description="Adjust your filters or date selection to see report records."
         />
       ) : (
-        <div className="space-y-4">
+        <section
+          aria-busy={isPending}
+          className={`space-y-4 transition-opacity duration-150 ${isPending ? 'opacity-60 pointer-events-none' : ''}`}
+        >
           <div className="border border-border/70 rounded-2xl bg-card overflow-hidden shadow-xs">
             <div className="overflow-x-auto">
               <table className="w-full text-xs text-left">
@@ -355,7 +372,7 @@ export const ManagerReportsPage: React.FC = () => {
                     size="sm"
                     className="h-7 text-xs rounded-lg"
                     disabled={meta.page <= 1}
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    onClick={() => handlePageChange(Math.max(1, meta.page - 1))}
                   >
                     <ChevronLeft className="w-3.5 h-3.5" /> Previous
                   </Button>
@@ -364,7 +381,7 @@ export const ManagerReportsPage: React.FC = () => {
                     size="sm"
                     className="h-7 text-xs rounded-lg"
                     disabled={meta.page >= meta.totalPages}
-                    onClick={() => setPage((p) => p + 1)}
+                    onClick={() => handlePageChange(meta.page + 1)}
                   >
                     Next <ChevronRight className="w-3.5 h-3.5" />
                   </Button>
@@ -372,7 +389,7 @@ export const ManagerReportsPage: React.FC = () => {
               </div>
             )}
           </div>
-        </div>
+        </section>
       )}
     </div>
   );

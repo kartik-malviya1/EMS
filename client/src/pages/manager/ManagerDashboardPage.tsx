@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useTransition } from 'react';
 import { Link } from 'react-router-dom';
 import { PageHeader } from '../../components/common/PageHeader';
 import { Card } from '../../components/ui/card';
@@ -13,11 +13,16 @@ import {
   ArrowRight,
   Calendar,
   FileSpreadsheet,
+  LayoutDashboard,
+  CheckSquare,
 } from 'lucide-react';
 
 import { MetricSummaryCards } from '../../components/common/MetricSummaryCards';
 
 export const ManagerDashboardPage: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<'overview' | 'actions'>('overview');
+  const [isPending, startTransition] = useTransition();
+
   const { data, isLoading, isError, refetch } = useGetDashboardSummaryQuery();
 
   if (isLoading) {
@@ -54,16 +59,50 @@ export const ManagerDashboardPage: React.FC = () => {
     metrics.punchedIn - (metrics.completed || 0) - (metrics.incomplete || 0)
   );
 
+  const handleTabChange = (nextTab: 'overview' | 'actions') => {
+    startTransition(() => {
+      setActiveTab(nextTab);
+    });
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <PageHeader
-            title="Team Overview & Attendance"
-            description="Real-time shift tracking, attendance auditing, and overtime management for your team"
-          />
-        </div>
-        <div className="flex items-center gap-2">
+      <PageHeader
+        title="Team Overview & Attendance"
+        description="Real-time shift tracking, attendance auditing, and overtime management for your team"
+      >
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-xl border border-border/70 mr-1" role="tablist">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'overview'}
+              onClick={() => handleTabChange('overview')}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeTab === 'overview'
+                  ? 'bg-card text-foreground shadow-xs'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <LayoutDashboard className="w-3.5 h-3.5" />
+              <span>Team Overview</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'actions'}
+              onClick={() => handleTabChange('actions')}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeTab === 'actions'
+                  ? 'bg-card text-foreground shadow-xs'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <CheckSquare className="w-3.5 h-3.5" />
+              <span>Action Hub</span>
+            </button>
+          </div>
+
           <Link to="/manager/reports">
             <Button variant="outline" size="sm" className="gap-1.5 h-9 rounded-xl text-xs font-semibold">
               <FileSpreadsheet className="w-3.5 h-3.5" /> Reports
@@ -71,32 +110,39 @@ export const ManagerDashboardPage: React.FC = () => {
           </Link>
           <Link to="/employee">
             <Button size="sm" className="gap-1.5 h-9 rounded-xl text-xs font-semibold shadow-xs">
-              <Clock className="w-3.5 h-3.5" /> My Personal Shift
+              <Clock className="w-3.5 h-3.5" /> My Shift
             </Button>
           </Link>
         </div>
-      </div>
+      </PageHeader>
 
-      {/* Tiimi-Inspired 3-Column Summary Cards */}
-      <MetricSummaryCards
-        presentMetrics={{
-          totalPresent: metrics.punchedIn,
-          completed: metrics.completed || 0,
-          inProgress: inProgressCount,
-        }}
-        actionMetrics={{
-          pendingReviews: metrics.pendingVerification || 0,
-          pendingOvertime: metrics.pendingOvertime || 0,
-          invalidRecords: metrics.incomplete || 0,
-        }}
-        teamMetrics={{
-          totalEmployees: metrics.teamSize || 0,
-          complianceRate:
-            metrics.teamSize > 0
-              ? `${Math.round(((metrics.completed || 0) / Math.max(1, metrics.punchedIn || 1)) * 100)}%`
-              : '100%',
-        }}
-      />
+      {/* Main Content with Transition Status */}
+      <section
+        aria-busy={isPending}
+        className={`space-y-6 transition-opacity duration-200 ${
+          isPending ? 'opacity-70' : 'opacity-100'
+        }`}
+      >
+        {/* Tiimi-Inspired 3-Column Summary Cards */}
+        <MetricSummaryCards
+          presentMetrics={{
+            totalPresent: metrics.punchedIn,
+            completed: metrics.completed || 0,
+            inProgress: inProgressCount,
+          }}
+          actionMetrics={{
+            pendingReviews: metrics.pendingVerification || 0,
+            pendingOvertime: metrics.pendingOvertime || 0,
+            invalidRecords: metrics.incomplete || 0,
+          }}
+          teamMetrics={{
+            totalEmployees: metrics.teamSize || 0,
+            complianceRate:
+              metrics.teamSize > 0
+                ? `${Math.round(((metrics.completed || 0) / Math.max(1, metrics.punchedIn || 1)) * 100)}%`
+                : '100%',
+          }}
+        />
 
       {/* Quick Action Hub */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
@@ -160,6 +206,7 @@ export const ManagerDashboardPage: React.FC = () => {
           </Card>
         </Link>
       </div>
+      </section>
     </div>
   );
 };

@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '../ui/button';
 import { TableSkeleton } from './Skeletons';
 import { EmptyState } from './EmptyState';
+import { ErrorState } from './ErrorState';
 import { cn } from '../../lib/utils';
 import type { PaginationMeta } from '../../types/models';
 
@@ -17,6 +18,9 @@ interface DataTableProps<T> {
   columns: Column<T>[];
   data?: T[];
   isLoading?: boolean;
+  isError?: boolean;
+  errorMessage?: string;
+  onRetry?: () => void;
   meta?: PaginationMeta;
   onPageChange?: (page: number) => void;
   emptyTitle?: string;
@@ -28,12 +32,25 @@ export function DataTable<T extends { id?: string; _id?: string }>({
   columns,
   data = [],
   isLoading = false,
+  isError = false,
+  errorMessage,
+  onRetry,
   meta,
   onPageChange,
   emptyTitle = 'No records found',
   emptyDescription = 'There are no items to display matching the criteria.',
   className,
 }: DataTableProps<T>) {
+  if (isError) {
+    return (
+      <ErrorState
+        title="Failed to load records"
+        message={errorMessage || 'Could not fetch records. Please check your connection and retry.'}
+        onRetry={onRetry}
+      />
+    );
+  }
+
   if (isLoading) {
     return (
       <div className="rounded-xl border bg-card p-6">

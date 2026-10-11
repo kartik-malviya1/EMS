@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useTransition } from 'react';
 import {
   Calendar,
   Clock,
@@ -23,6 +23,7 @@ export const EmployeeHistoryPage: React.FC = () => {
   const [fromDate, setFromDate] = useState<string>('');
   const [toDate, setToDate] = useState<string>('');
   const [workingStatus, setWorkingStatus] = useState<string>('');
+  const [isPending, startTransition] = useTransition();
 
   const [selectedOvertimeRecord, setSelectedOvertimeRecord] =
     useState<Attendance | null>(null);
@@ -37,13 +38,29 @@ export const EmployeeHistoryPage: React.FC = () => {
     ...(workingStatus ? { workingStatus } : {}),
   };
 
-  const { data, isLoading } = useGetMyAttendanceHistoryQuery(queryParams);
+  const { data, isLoading, isError, refetch } =
+    useGetMyAttendanceHistoryQuery(queryParams);
 
   const resetFilters = () => {
-    setFromDate('');
-    setToDate('');
-    setWorkingStatus('');
-    setPage(1);
+    startTransition(() => {
+      setFromDate('');
+      setToDate('');
+      setWorkingStatus('');
+      setPage(1);
+    });
+  };
+
+  const handleStatusFilterChange = (status: string) => {
+    startTransition(() => {
+      setWorkingStatus(status);
+      setPage(1);
+    });
+  };
+
+  const handlePageChange = (newPage: number) => {
+    startTransition(() => {
+      setPage(newPage);
+    });
   };
 
   const columns: Column<Attendance>[] = [
@@ -200,10 +217,7 @@ export const EmployeeHistoryPage: React.FC = () => {
                 <select
                   id="status-select"
                   value={workingStatus}
-                  onChange={(e) => {
-                    setWorkingStatus(e.target.value);
-                    setPage(1);
-                  }}
+                  onChange={(e) => handleStatusFilterChange(e.target.value)}
                   className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
                   <option value="">All Statuses</option>
@@ -231,16 +245,25 @@ export const EmployeeHistoryPage: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Main Data Table */}
-      <DataTable
-        columns={columns}
-        data={data?.data}
-        isLoading={isLoading}
-        meta={data?.meta}
-        onPageChange={(newPage) => setPage(newPage)}
-        emptyTitle="No attendance records found"
-        emptyDescription="No attendance records match your current filter criteria."
-      />
+      {/* Main Data Table Container with Transition Status */}
+      <section
+        aria-busy={isPending}
+        className={`transition-opacity duration-200 ${
+          isPending ? 'opacity-70' : 'opacity-100'
+        }`}
+      >
+        <DataTable
+          columns={columns}
+          data={data?.data}
+          isLoading={isLoading}
+          isError={isError}
+          onRetry={refetch}
+          meta={data?.meta}
+          onPageChange={handlePageChange}
+          emptyTitle="No attendance records found"
+          emptyDescription="No attendance records match your current filter criteria."
+        />
+      </section>
 
       {/* Overtime Request Dialog */}
       <OvertimeRequestDialog

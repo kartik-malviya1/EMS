@@ -7,6 +7,7 @@ import { ProtectedRoute } from './routes/ProtectedRoute';
 import { RoleRedirect } from './routes/RoleRedirect';
 import { LoginPage } from './pages/LoginPage';
 import { SignupPage } from './pages/SignupPage';
+import { AcceptInvitationPage } from './pages/AcceptInvitationPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { EmployeeDashboardPage } from './pages/employee/EmployeeDashboardPage';
 import { EmployeeHistoryPage } from './pages/employee/EmployeeHistoryPage';
@@ -39,6 +40,7 @@ export function App() {
             {/* Public Auth Routes */}
             <Route path="/login" element={<LoginPage />} />
             <Route path="/signup" element={<SignupPage />} />
+            <Route path="/accept-invitation" element={<AcceptInvitationPage />} />
 
             {/* Root Role Redirect */}
             <Route

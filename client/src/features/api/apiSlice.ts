@@ -56,10 +56,12 @@ const baseQueryWithReauth: BaseQueryFn<
     const isLoginOrAuthPath =
       url.includes('/auth/login') ||
       url.includes('/auth/signup') ||
+      url.includes('/auth/invitations') ||
+      url.includes('/auth/accept-invitation') ||
       url.includes('/auth/me');
 
     const pathname = typeof window !== 'undefined' ? window.location?.pathname : '';
-    const isOnAuthPage = pathname === '/login' || pathname === '/signup';
+    const isOnAuthPage = pathname === '/login' || pathname === '/signup' || pathname === '/accept-invitation';
 
     const state = api.getState() as { auth?: { isAuthenticated?: boolean } };
     const wasAuthenticated = Boolean(state.auth?.isAuthenticated);
@@ -88,6 +90,9 @@ export const apiSlice = createApi({
     'Dashboard',
     'Notification',
     'Settings',
+    'Invitation',
+    'EmailStatus',
   ],
   endpoints: () => ({}),
 });
+

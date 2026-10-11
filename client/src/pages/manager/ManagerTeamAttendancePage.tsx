@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useTransition } from 'react';
 import { Link } from 'react-router-dom';
 import { PageHeader } from '../../components/common/PageHeader';
 import { Button } from '../../components/ui/button';
@@ -40,6 +40,7 @@ export const ManagerTeamAttendancePage: React.FC = () => {
   const [overtimeStatus, setOvertimeStatus] = useState<OvertimeStatus | ''>('');
   const [page, setPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isPending, startTransition] = useTransition();
 
   const [selectedRecord, setSelectedRecord] = useState<Attendance | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -66,15 +67,24 @@ export const ManagerTeamAttendancePage: React.FC = () => {
   const { data, isLoading, isError, refetch } =
     useGetTeamAttendanceQuery(queryParams);
 
+  const handleTabChange = (tabId: string) => {
+    startTransition(() => {
+      setActiveTab(tabId as 'all' | 'pending' | 'overtime');
+      setPage(1);
+    });
+  };
+
   const handleResetFilters = () => {
-    setFrom('');
-    setTo('');
-    setUserId('');
-    setWorkingStatus('');
-    setVerificationStatus('');
-    setOvertimeStatus('');
-    setSearchQuery('');
-    setPage(1);
+    startTransition(() => {
+      setFrom('');
+      setTo('');
+      setUserId('');
+      setWorkingStatus('');
+      setVerificationStatus('');
+      setOvertimeStatus('');
+      setSearchQuery('');
+      setPage(1);
+    });
   };
 
   const rawRecords = data?.data || [];
@@ -113,14 +123,11 @@ export const ManagerTeamAttendancePage: React.FC = () => {
         </div>
       </div>
 
-      {/* Navigation Tabs */}
+      {/* Navigation Tabs with useTransition */}
       <TabNavigation
         tabs={tabs}
         activeTab={activeTab}
-        onChange={(id) => {
-          setActiveTab(id as 'all' | 'pending' | 'overtime');
-          setPage(1);
-        }}
+        onChange={handleTabChange}
       />
 
       {/* Search and Filter Controls Toolbar */}
@@ -189,10 +196,16 @@ export const ManagerTeamAttendancePage: React.FC = () => {
         </div>
       </div>
 
-      {/* Attendance Table */}
-      {isLoading ? (
-        <Skeletons count={5} />
-      ) : isError ? (
+      {/* Attendance Table with Transition Status */}
+      <section
+        aria-busy={isPending}
+        className={`space-y-4 transition-opacity duration-200 ${
+          isPending ? 'opacity-70' : 'opacity-100'
+        }`}
+      >
+        {isLoading ? (
+          <Skeletons count={5} />
+        ) : isError ? (
         <ErrorState
           title="Could not load team attendance records"
           message="An error occurred while fetching team attendance. Please try again."
@@ -291,7 +304,7 @@ export const ManagerTeamAttendancePage: React.FC = () => {
                     size="sm"
                     className="h-7 text-xs"
                     disabled={meta.page <= 1}
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    onClick={() => startTransition(() => setPage((p) => Math.max(1, p - 1)))}
                   >
                     <ChevronLeft className="w-3.5 h-3.5" /> Previous
                   </Button>
@@ -300,7 +313,7 @@ export const ManagerTeamAttendancePage: React.FC = () => {
                     size="sm"
                     className="h-7 text-xs"
                     disabled={meta.page >= meta.totalPages}
-                    onClick={() => setPage((p) => p + 1)}
+                    onClick={() => startTransition(() => setPage((p) => p + 1))}
                   >
                     Next <ChevronRight className="w-3.5 h-3.5" />
                   </Button>
@@ -310,6 +323,7 @@ export const ManagerTeamAttendancePage: React.FC = () => {
           </div>
         </div>
       )}
+      </section>
 
       {/* Review Dialog */}
       <AttendanceReviewDialog

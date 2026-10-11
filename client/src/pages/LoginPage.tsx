@@ -12,6 +12,7 @@ import { useAppDispatch } from '../app/hooks';
 import { setCredentials } from '../features/auth/authSlice';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
+import { PasswordInput } from '../components/ui/password-input';
 import { Label } from '../components/ui/label';
 import { ThemeToggle } from '../components/layout/ThemeToggle';
 
@@ -113,7 +114,7 @@ export const LoginPage: React.FC = () => {
         )}
 
         {/* Credentials Form */}
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
           <div className="space-y-1.5">
             <Label htmlFor="email" className="text-xs font-semibold text-foreground">
               Work Email
@@ -123,11 +124,13 @@ export const LoginPage: React.FC = () => {
               type="email"
               autoComplete="email"
               placeholder="name@company.com"
+              aria-invalid={Boolean(errors.email)}
+              aria-describedby={errors.email ? 'email-error' : undefined}
               className="h-10.5 rounded-xl bg-background border-border/80 focus-visible:ring-primary/30"
               {...register('email')}
             />
             {errors.email && (
-              <p className="text-xs text-destructive mt-1 font-medium">
+              <p id="email-error" className="text-xs text-destructive mt-1 font-medium">
                 {errors.email.message}
               </p>
             )}
@@ -137,16 +140,17 @@ export const LoginPage: React.FC = () => {
             <Label htmlFor="password" className="text-xs font-semibold text-foreground">
               Password
             </Label>
-            <Input
+            <PasswordInput
               id="password"
-              type="password"
               autoComplete="current-password"
               placeholder="••••••••"
+              aria-invalid={Boolean(errors.password)}
+              aria-describedby={errors.password ? 'password-error' : undefined}
               className="h-10.5 rounded-xl bg-background border-border/80 focus-visible:ring-primary/30"
               {...register('password')}
             />
             {errors.password && (
-              <p className="text-xs text-destructive mt-1 font-medium">
+              <p id="password-error" className="text-xs text-destructive mt-1 font-medium">
                 {errors.password.message}
               </p>
             )}
@@ -154,21 +158,28 @@ export const LoginPage: React.FC = () => {
 
           <Button
             type="submit"
-            className="w-full h-11 rounded-xl text-sm font-semibold shadow-md shadow-primary/20 hover:shadow-primary/30 active:scale-[0.99] transition-all"
+            className="w-full h-11 rounded-xl text-sm font-semibold shadow-md shadow-primary/20 hover:shadow-primary/30 active:scale-[0.99] transition-all cursor-pointer"
             disabled={isLoading}
           >
-            {isLoading ? 'Signing In...' : 'Sign In'}
+            {isLoading ? (
+              <span className="flex items-center justify-center gap-2">
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+                <span>Signing In...</span>
+              </span>
+            ) : (
+              'Sign In'
+            )}
           </Button>
         </form>
 
-        {/* Create Account Link */}
+        {/* Invitation Activation Link */}
         <div className="text-center text-xs text-muted-foreground pt-2 border-t border-border/60">
-          Don&apos;t have an account?{' '}
+          Received an invitation?{' '}
           <Link
-            to="/signup"
+            to="/accept-invitation"
             className="font-semibold text-primary hover:underline transition-colors"
           >
-            Create account
+            Activate account
           </Link>
         </div>
       </div>

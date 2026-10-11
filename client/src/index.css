@@ -24,48 +24,62 @@
 
 @layer base {
   :root {
-    --background: 210 20% 98%;
-    --foreground: 224 71% 4%;
+    /* Backgrounds */
+    --background: 216 22% 96%;
+    --foreground: 222 47% 11%;
+    /* Cards sit on top of background with clear separation */
     --card: 0 0% 100%;
-    --card-foreground: 224 71% 4%;
+    --card-foreground: 222 47% 11%;
     --popover: 0 0% 100%;
-    --popover-foreground: 224 71% 4%;
-    --primary: 243 75% 59%;
+    --popover-foreground: 222 47% 11%;
+    /* Primary: deep indigo */
+    --primary: 243 75% 57%;
     --primary-foreground: 210 40% 98%;
-    --secondary: 220 14% 96%;
-    --secondary-foreground: 220 39% 11%;
-    --muted: 220 14% 96%;
-    --muted-foreground: 220 9% 46%;
-    --accent: 243 75% 96%;
-    --accent-foreground: 243 75% 45%;
+    /* Secondary / muted */
+    --secondary: 216 18% 93%;
+    --secondary-foreground: 222 39% 20%;
+    --muted: 216 18% 93%;
+    --muted-foreground: 220 9% 48%;
+    /* Accent */
+    --accent: 243 75% 95%;
+    --accent-foreground: 243 75% 42%;
+    /* Destructive */
     --destructive: 0 84% 60%;
     --destructive-foreground: 210 40% 98%;
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 243 75% 59%;
+    /* Borders */
+    --border: 218 16% 88%;
+    --input: 218 16% 88%;
+    --ring: 243 75% 57%;
     --radius: 0.65rem;
   }
 
   .dark {
-    --background: 224 71% 4%;
-    --foreground: 210 20% 98%;
-    --card: 224 71% 7%;
-    --card-foreground: 210 20% 98%;
-    --popover: 224 71% 7%;
-    --popover-foreground: 210 20% 98%;
-    --primary: 243 75% 65%;
-    --primary-foreground: 224 71% 4%;
-    --secondary: 215 28% 17%;
-    --secondary-foreground: 210 20% 98%;
-    --muted: 215 28% 17%;
-    --muted-foreground: 218 11% 65%;
-    --accent: 243 45% 20%;
-    --accent-foreground: 243 75% 85%;
-    --destructive: 0 63% 31%;
+    /* Backgrounds */
+    --background: 222 47% 6%;
+    --foreground: 210 20% 96%;
+    /* Cards — slightly lighter than background for clear elevation */
+    --card: 222 44% 9%;
+    --card-foreground: 210 20% 96%;
+    --popover: 222 44% 9%;
+    --popover-foreground: 210 20% 96%;
+    /* Primary: slightly brighter for contrast on dark bg */
+    --primary: 243 75% 67%;
+    --primary-foreground: 222 47% 5%;
+    /* Secondary / muted */
+    --secondary: 218 30% 14%;
+    --secondary-foreground: 210 20% 94%;
+    --muted: 218 30% 14%;
+    --muted-foreground: 218 13% 58%;
+    /* Accent */
+    --accent: 243 40% 18%;
+    --accent-foreground: 243 75% 82%;
+    /* Destructive */
+    --destructive: 0 60% 42%;
     --destructive-foreground: 210 20% 98%;
-    --border: 215 28% 17%;
-    --input: 215 28% 17%;
-    --ring: 243 75% 65%;
+    /* Borders */
+    --border: 218 28% 14%;
+    --input: 218 28% 14%;
+    --ring: 243 75% 67%;
   }
 
   * {
@@ -76,25 +90,46 @@
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    font-feature-settings: 'cv11', 'ss01';
+    font-variation-settings: 'opsz' 32;
     margin: 0;
     min-height: 100vh;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
 
-  /* Sleek custom scrollbars for containers */
+  ::selection {
+    background-color: hsl(var(--primary) / 0.18);
+    color: hsl(var(--foreground));
+  }
+
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+
+  /* Sleek custom scrollbars for all scrollable containers */
   ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 5px;
+    height: 5px;
   }
   ::-webkit-scrollbar-track {
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: hsl(var(--muted-foreground) / 0.22);
+    background: hsl(var(--muted-foreground) / 0.18);
     border-radius: 9999px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: hsl(var(--muted-foreground) / 0.38);
+    background: hsl(var(--muted-foreground) / 0.32);
+  }
+
+  /* Smooth transitions on interactive elements */
+  a,
+  button {
+    transition-property: color, background-color, border-color, opacity, box-shadow, transform;
+    transition-duration: 150ms;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   }
 }

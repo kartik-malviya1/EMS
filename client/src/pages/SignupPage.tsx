@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { User, Lock, Mail, AlertCircle, ArrowRight } from 'lucide-react';
@@ -8,6 +8,7 @@ import { useAppDispatch } from '../app/hooks';
 import { setCredentials } from '../features/auth/authSlice';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
+import { PasswordInput } from '../components/ui/password-input';
 import { Label } from '../components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../components/ui/card';
 import { ThemeToggle } from '../components/layout/ThemeToggle';
@@ -16,9 +17,18 @@ import { signupSchema, type SignupFormValues } from '../validators/auth.validato
 
 export const SignupPage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const dispatch = useAppDispatch();
   const [signupMutation, { isLoading }] = useSignupMutation();
   const [serverError, setServerError] = useState<string | null>(null);
+
+  // If token is present, forward to /accept-invitation
+  useEffect(() => {
+    const token = searchParams.get('token');
+    if (token) {
+      navigate(`/accept-invitation?token=${encodeURIComponent(token)}`, { replace: true });
+    }
+  }, [searchParams, navigate]);
 
   const {
     register,
@@ -60,9 +70,11 @@ export const SignupPage: React.FC = () => {
 
       const errorObj = errorPayload?.data?.error;
       const message =
-        errorObj?.message ||
-        (typeof errorPayload?.error === 'string' ? errorPayload.error : null) ||
-        'Failed to create account. Please try again.';
+        errorObj?.code === 'SIGNUP_DISABLED'
+          ? 'Registration is invitation-only'
+          : errorObj?.message ||
+            (typeof errorPayload?.error === 'string' ? errorPayload.error : null) ||
+            'Failed to create account. Please try again.';
 
       setServerError(message);
 
@@ -94,11 +106,11 @@ export const SignupPage: React.FC = () => {
       <div className="w-full max-w-md">
         <div className="text-center mb-6">
           <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground font-black text-xl shadow-md mb-2">
-            A
+            E
           </div>
           <h1 className="text-2xl font-bold tracking-tight">Create an account</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Join the Attendance Management Portal
+            Join the Attendance Management Portal &bull; EMS
           </p>
         </div>
 
@@ -110,7 +122,7 @@ export const SignupPage: React.FC = () => {
             </CardDescription>
           </CardHeader>
 
-          <form onSubmit={handleSubmit(onSubmit)}>
+          <form onSubmit={handleSubmit(onSubmit)} noValidate>
             <CardContent className="space-y-4">
               {serverError && (
                 <div
@@ -131,11 +143,13 @@ export const SignupPage: React.FC = () => {
                     placeholder="Alex Morgan"
                     className="pl-9"
                     autoComplete="name"
+                    aria-invalid={Boolean(errors.name)}
+                    aria-describedby={errors.name ? 'name-error' : undefined}
                     {...register('name')}
                   />
                 </div>
                 {errors.name && (
-                  <p className="text-xs text-destructive mt-1 font-medium">
+                  <p id="name-error" className="text-xs text-destructive mt-1 font-medium">
                     {errors.name.message}
                   </p>
                 )}
@@ -151,11 +165,13 @@ export const SignupPage: React.FC = () => {
                     placeholder="name@company.com"
                     className="pl-9"
                     autoComplete="email"
+                    aria-invalid={Boolean(errors.email)}
+                    aria-describedby={errors.email ? 'email-error' : undefined}
                     {...register('email')}
                   />
                 </div>
                 {errors.email && (
-                  <p className="text-xs text-destructive mt-1 font-medium">
+                  <p id="email-error" className="text-xs text-destructive mt-1 font-medium">
                     {errors.email.message}
                   </p>
                 )}
@@ -164,18 +180,19 @@ export const SignupPage: React.FC = () => {
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
+                  <Lock className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground z-10 pointer-events-none" />
+                  <PasswordInput
                     id="password"
-                    type="password"
                     placeholder="••••••••"
                     className="pl-9"
                     autoComplete="new-password"
+                    aria-invalid={Boolean(errors.password)}
+                    aria-describedby={errors.password ? 'password-error' : undefined}
                     {...register('password')}
                   />
                 </div>
                 {errors.password && (
-                  <p className="text-xs text-destructive mt-1 font-medium">
+                  <p id="password-error" className="text-xs text-destructive mt-1 font-medium">
                     {errors.password.message}
                   </p>
                 )}
@@ -184,18 +201,19 @@ export const SignupPage: React.FC = () => {
               <div className="space-y-2">
                 <Label htmlFor="confirmPassword">Confirm Password</Label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
+                  <Lock className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground z-10 pointer-events-none" />
+                  <PasswordInput
                     id="confirmPassword"
-                    type="password"
                     placeholder="••••••••"
                     className="pl-9"
                     autoComplete="new-password"
+                    aria-invalid={Boolean(errors.confirmPassword)}
+                    aria-describedby={errors.confirmPassword ? 'confirm-password-error' : undefined}
                     {...register('confirmPassword')}
                   />
                 </div>
                 {errors.confirmPassword && (
-                  <p className="text-xs text-destructive mt-1 font-medium">
+                  <p id="confirm-password-error" className="text-xs text-destructive mt-1 font-medium">
                     {errors.confirmPassword.message}
                   </p>
                 )}
@@ -203,9 +221,18 @@ export const SignupPage: React.FC = () => {
             </CardContent>
 
             <CardFooter className="flex flex-col gap-4">
-              <Button type="submit" className="w-full gap-2" disabled={isLoading}>
-                <span>{isLoading ? 'Creating Account...' : 'Sign Up'}</span>
-                {!isLoading && <ArrowRight className="h-4 w-4" />}
+              <Button type="submit" className="w-full gap-2 cursor-pointer" disabled={isLoading}>
+                {isLoading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+                    <span>Creating Account...</span>
+                  </span>
+                ) : (
+                  <>
+                    <span>Sign Up</span>
+                    <ArrowRight className="h-4 w-4" />
+                  </>
+                )}
               </Button>
 
               <p className="text-center text-xs text-muted-foreground">

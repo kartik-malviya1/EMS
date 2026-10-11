@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useTransition } from 'react';
 import { PageHeader } from '../../components/common/PageHeader';
 import { Card, CardContent } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
@@ -22,12 +22,26 @@ import { toast } from 'sonner';
 export const NotificationsPage: React.FC = () => {
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [page, setPage] = useState(1);
+  const [isPending, startTransition] = useTransition();
 
   const { data, isLoading, isError, refetch } = useGetNotificationsQuery({
     unreadOnly: unreadOnly ? true : undefined,
     page,
     limit: 15,
   });
+
+  const handleTabChange = (val: boolean) => {
+    startTransition(() => {
+      setUnreadOnly(val);
+      setPage(1);
+    });
+  };
+
+  const handlePageChange = (newPage: number) => {
+    startTransition(() => {
+      setPage(newPage);
+    });
+  };
 
   const [markAsRead, { isLoading: isMarkingSingle }] =
     useMarkNotificationAsReadMutation();
@@ -79,10 +93,7 @@ export const NotificationsPage: React.FC = () => {
       <div className="flex items-center gap-2 border-b border-border/70 pb-3">
         <button
           type="button"
-          onClick={() => {
-            setUnreadOnly(false);
-            setPage(1);
-          }}
+          onClick={() => handleTabChange(false)}
           className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
             !unreadOnly
               ? 'bg-primary text-primary-foreground shadow-sm'
@@ -93,10 +104,7 @@ export const NotificationsPage: React.FC = () => {
         </button>
         <button
           type="button"
-          onClick={() => {
-            setUnreadOnly(true);
-            setPage(1);
-          }}
+          onClick={() => handleTabChange(true)}
           className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
             unreadOnly
               ? 'bg-primary text-primary-foreground shadow-sm'
@@ -130,7 +138,10 @@ export const NotificationsPage: React.FC = () => {
           }
         />
       ) : (
-        <div className="space-y-3">
+        <section
+          aria-busy={isPending}
+          className={`space-y-3 transition-opacity duration-150 ${isPending ? 'opacity-60 pointer-events-none' : ''}`}
+        >
           {notifications.map((n) => {
             const isUnread = !n.readAt;
             const nId = n.id || n._id || '';
@@ -210,7 +221,7 @@ export const NotificationsPage: React.FC = () => {
                   size="sm"
                   className="h-7 text-xs"
                   disabled={meta.page <= 1}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  onClick={() => handlePageChange(Math.max(1, meta.page - 1))}
                 >
                   <ChevronLeft className="w-3.5 h-3.5" /> Previous
                 </Button>
@@ -219,14 +230,14 @@ export const NotificationsPage: React.FC = () => {
                   size="sm"
                   className="h-7 text-xs"
                   disabled={meta.page >= meta.totalPages}
-                  onClick={() => setPage((p) => p + 1)}
+                  onClick={() => handlePageChange(meta.page + 1)}
                 >
                   Next <ChevronRight className="w-3.5 h-3.5" />
                 </Button>
               </div>
             </div>
           )}
-        </div>
+        </section>
       )}
     </div>
   );

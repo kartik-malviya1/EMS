@@ -11,17 +11,60 @@ export type OvertimeStatus =
   | 'rejected'
   | 'none';
 
+export type AccountStatus = 'invited' | 'active' | 'suspended' | 'deactivated';
+
+export type InvitationStatus = 'pending' | 'accepted' | 'expired' | 'revoked';
+
+export type EmailDeliveryStatus = 'pending' | 'accepted' | 'failed' | 'dev_link';
+
 export interface User {
   _id?: string;
   id: string;
   name: string;
   email: string;
   role: Role;
+  employeeId?: string;
+  department?: string;
+  designation?: string;
+  dateOfJoining?: string | null;
+  accountStatus?: AccountStatus;
   managerId?: string | User | null;
   isActive: boolean;
   createdAt?: string;
   updatedAt?: string;
 }
+
+export interface Invitation {
+  _id?: string;
+  id?: string;
+  userId?: string | User;
+  email: string;
+  name: string;
+  role: 'employee' | 'manager';
+  employeeId?: string;
+  department?: string;
+  designation?: string;
+  invitedBy?: string | User;
+  status: InvitationStatus;
+  expiresAt: string;
+  acceptedAt?: string | null;
+  revokedAt?: string | null;
+  lastSentAt?: string;
+  resendCount?: number;
+  emailDeliveryStatus?: EmailDeliveryStatus;
+  emailMode?: 'resend' | 'development';
+  emailProviderMessageId?: string | null;
+  emailLastError?: {
+    code: string;
+    message: string;
+    at?: string;
+    outcomeUnknown?: boolean;
+  } | null;
+  emailAttempt?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 
 export interface Coordinates {
   latitude: number;

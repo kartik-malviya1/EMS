@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useTransition } from 'react';
 import { Link } from 'react-router-dom';
 import { PageHeader } from '../../components/common/PageHeader';
 import { Card } from '../../components/ui/card';
@@ -9,16 +9,20 @@ import { useGetDashboardSummaryQuery } from '../../features/dashboard/dashboardA
 import type { AdminDashboardMetrics } from '../../types/models';
 import {
   Users,
-  Clock,
   ShieldCheck,
   ArrowRight,
   Building2,
   FileSpreadsheet,
+  LayoutDashboard,
+  Grid3X3,
 } from 'lucide-react';
 
 import { MetricSummaryCards } from '../../components/common/MetricSummaryCards';
 
 export const AdminDashboardPage: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<'overview' | 'modules'>('overview');
+  const [isPending, startTransition] = useTransition();
+
   const { data, isLoading, isError, refetch } = useGetDashboardSummaryQuery();
 
   if (isLoading) {
@@ -62,49 +66,85 @@ export const AdminDashboardPage: React.FC = () => {
       (metrics.today?.incomplete || 0)
   );
 
+  const handleTabChange = (nextTab: 'overview' | 'modules') => {
+    startTransition(() => {
+      setActiveTab(nextTab);
+    });
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <PageHeader
-            title="System Administration Dashboard"
-            description="High-level visibility into company-wide workforce operations, attendance, and compliance"
-          />
-        </div>
-        <div className="flex items-center gap-2">
+      <PageHeader
+        title="System Administration Dashboard"
+        description="High-level visibility into company-wide workforce operations, attendance, and compliance"
+      >
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-xl border border-border/70 mr-1" role="tablist">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'overview'}
+              onClick={() => handleTabChange('overview')}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeTab === 'overview'
+                  ? 'bg-card text-foreground shadow-xs'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <LayoutDashboard className="w-3.5 h-3.5" />
+              <span>Operations Hub</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'modules'}
+              onClick={() => handleTabChange('modules')}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeTab === 'modules'
+                  ? 'bg-card text-foreground shadow-xs'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <Grid3X3 className="w-3.5 h-3.5" />
+              <span>Admin Modules</span>
+            </button>
+          </div>
+
           <Link to="/admin/reports">
             <Button variant="outline" size="sm" className="gap-1.5 h-9 rounded-xl text-xs font-semibold">
               <FileSpreadsheet className="w-3.5 h-3.5" /> Reports
             </Button>
           </Link>
-          <Link to="/employee">
-            <Button size="sm" className="gap-1.5 h-9 rounded-xl text-xs font-semibold shadow-xs">
-              <Clock className="w-3.5 h-3.5" /> My Personal Shift
-            </Button>
-          </Link>
         </div>
-      </div>
+      </PageHeader>
 
-      {/* Tiimi-Inspired 3-Column Summary Cards */}
-      <MetricSummaryCards
-        presentMetrics={{
-          totalPresent: metrics.today?.punchedIn || 0,
-          completed: metrics.today?.completed || 0,
-          inProgress: inProgressCount,
-        }}
-        actionMetrics={{
-          pendingReviews: metrics.today?.pendingVerification || 0,
-          pendingOvertime: metrics.today?.pendingOvertime || 0,
-          invalidRecords: metrics.today?.incomplete || 0,
-        }}
-        teamMetrics={{
-          totalEmployees: totalUsersCount,
-          complianceRate:
-            totalUsersCount > 0
-              ? `${Math.round(((metrics.activeUsers || 0) / totalUsersCount) * 100)}%`
-              : '100%',
-        }}
-      />
+      {/* Main Content with Transition Status */}
+      <section
+        aria-busy={isPending}
+        className={`space-y-6 transition-opacity duration-200 ${
+          isPending ? 'opacity-70' : 'opacity-100'
+        }`}
+      >
+        {/* Tiimi-Inspired 3-Column Summary Cards */}
+        <MetricSummaryCards
+          presentMetrics={{
+            totalPresent: metrics.today?.punchedIn || 0,
+            completed: metrics.today?.completed || 0,
+            inProgress: inProgressCount,
+          }}
+          actionMetrics={{
+            pendingReviews: metrics.today?.pendingVerification || 0,
+            pendingOvertime: metrics.today?.pendingOvertime || 0,
+            invalidRecords: metrics.today?.incomplete || 0,
+          }}
+          teamMetrics={{
+            totalEmployees: totalUsersCount,
+            complianceRate:
+              totalUsersCount > 0
+                ? `${Math.round(((metrics.activeUsers || 0) / totalUsersCount) * 100)}%`
+                : '100%',
+          }}
+        />
 
 
 
@@ -170,6 +210,7 @@ export const AdminDashboardPage: React.FC = () => {
           </Card>
         </Link>
       </div>
+      </section>
     </div>
   );
 };

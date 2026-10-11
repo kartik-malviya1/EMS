@@ -37,8 +37,13 @@ const UserEditForm: React.FC<UserEditFormProps> = ({
 
   const [name, setName] = useState(user.name || '');
   const [role, setRole] = useState<Role>(user.role || 'employee');
+  const [employeeId, setEmployeeId] = useState(user.employeeId || '');
+  const [department, setDepartment] = useState(user.department || '');
+  const [designation, setDesignation] = useState(user.designation || '');
+  const [accountStatus, setAccountStatus] = useState<string>(
+    user.accountStatus || (user.isActive ? 'active' : 'deactivated')
+  );
   const [managerId, setManagerId] = useState<string>(initialMgrId);
-  const [isActive, setIsActive] = useState(user.isActive ?? true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const { data: managers = [] } = useGetManagersQuery();
@@ -53,13 +58,21 @@ const UserEditForm: React.FC<UserEditFormProps> = ({
         id: string;
         name?: string;
         role?: Role;
+        employeeId?: string;
+        department?: string;
+        designation?: string;
+        accountStatus?: 'invited' | 'active' | 'suspended' | 'deactivated';
         managerId?: string | null;
         isActive?: boolean;
       } = {
         id: userId,
         name: name.trim() || undefined,
         role,
-        isActive,
+        employeeId: employeeId.trim() || undefined,
+        department: department.trim() || undefined,
+        designation: designation.trim() || undefined,
+        accountStatus: accountStatus as 'invited' | 'active' | 'suspended' | 'deactivated',
+        isActive: accountStatus === 'active',
       };
 
       if (role === 'employee') {
@@ -156,6 +169,47 @@ const UserEditForm: React.FC<UserEditFormProps> = ({
           </select>
         </div>
 
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <Label htmlFor="edit-employee-id" className="text-xs font-semibold">
+              Employee ID
+            </Label>
+            <Input
+              id="edit-employee-id"
+              value={employeeId}
+              onChange={(e) => setEmployeeId(e.target.value)}
+              placeholder="e.g. EMP-101"
+              className="mt-1"
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="edit-department" className="text-xs font-semibold">
+              Department
+            </Label>
+            <Input
+              id="edit-department"
+              value={department}
+              onChange={(e) => setDepartment(e.target.value)}
+              placeholder="e.g. Engineering"
+              className="mt-1"
+            />
+          </div>
+        </div>
+
+        <div>
+          <Label htmlFor="edit-designation" className="text-xs font-semibold">
+            Designation
+          </Label>
+          <Input
+            id="edit-designation"
+            value={designation}
+            onChange={(e) => setDesignation(e.target.value)}
+            placeholder="e.g. Software Engineer"
+            className="mt-1"
+          />
+        </div>
+
         {role === 'employee' && (
           <div>
             <Label htmlFor="edit-manager" className="text-xs font-semibold">
@@ -182,22 +236,28 @@ const UserEditForm: React.FC<UserEditFormProps> = ({
           </div>
         )}
 
-        <div className="flex items-center justify-between p-3 rounded-xl border border-border/70 bg-muted/20">
-          <div>
-            <span className="text-xs font-semibold block text-foreground">
-              Account Active
-            </span>
-            <span className="text-[11px] text-muted-foreground block">
-              Deactivated users cannot log in or record attendance
-            </span>
-          </div>
-          <input
-            type="checkbox"
-            id="edit-active"
-            checked={isActive}
-            onChange={(e) => setIsActive(e.target.checked)}
-            className="w-4 h-4 rounded text-primary focus:ring-primary/20 cursor-pointer"
-          />
+        <div>
+          <Label htmlFor="edit-account-status" className="text-xs font-semibold">
+            Account Lifecycle Status
+          </Label>
+          <select
+            id="edit-account-status"
+            value={accountStatus}
+            onChange={(e) => {
+              setAccountStatus(e.target.value);
+            }}
+            className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+          >
+            {user.accountStatus === 'invited' && (
+              <option value="invited">Invited (Awaiting Acceptance)</option>
+            )}
+            <option value="active">Active (Normal Access)</option>
+            <option value="suspended">Suspended (Login Blocked, Records Retained)</option>
+            <option value="deactivated">Deactivated (Account Closed)</option>
+          </select>
+          <p className="text-[11px] text-muted-foreground mt-1">
+            Suspended and deactivated accounts cannot log in or record shifts. Historical attendance records are preserved.
+          </p>
         </div>
 
         <DialogFooter className="mt-4 flex flex-row items-center justify-end gap-2">

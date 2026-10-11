@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useTransition } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Calendar,
@@ -6,6 +6,7 @@ import {
   ArrowRight,
   Camera,
   FileText,
+  BarChart3,
 } from 'lucide-react';
 import { PageHeader } from '../../components/common/PageHeader';
 import { PunchCard } from '../../components/employee/PunchCard';
@@ -26,6 +27,9 @@ import { useGetDashboardSummaryQuery } from '../../features/dashboard/dashboardA
 import type { Attendance, EmployeeDashboardMetrics } from '../../types/models';
 
 export const EmployeeDashboardPage: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<'attendance' | 'insights'>('attendance');
+  const [isPending, startTransition] = useTransition();
+
   const [selectedOvertimeRecord, setSelectedOvertimeRecord] =
     useState<Attendance | null>(null);
   const [selectedSelfieRecord, setSelectedSelfieRecord] =
@@ -48,34 +52,85 @@ export const EmployeeDashboardPage: React.FC = () => {
 
   const employeeMetrics = summaryData as EmployeeDashboardMetrics | undefined;
 
+  const handleTabChange = (nextTab: 'attendance' | 'insights') => {
+    startTransition(() => {
+      setActiveTab(nextTab);
+    });
+  };
+
   const handleOpenOvertime = (attendance: Attendance) => {
     setSelectedOvertimeRecord(attendance);
   };
 
   return (
-    <div className="space-y-8" data-testid="employee-dashboard-page">
+    <div className="space-y-6" data-testid="employee-dashboard-page">
       {/* Welcome Header */}
       <PageHeader
         title="Employee Dashboard"
         description="Record your daily work shift, track worked hours, and view overtime requests."
-      />
+      >
+        {/* View Switcher Tabs with useTransition */}
+        <div className="flex items-center gap-1.5 bg-muted/60 p-1 rounded-xl border border-border/70" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'attendance'}
+            onClick={() => handleTabChange('attendance')}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+              activeTab === 'attendance'
+                ? 'bg-card text-foreground shadow-xs'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Clock className="w-3.5 h-3.5" />
+            <span>Today's Shift</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'insights'}
+            onClick={() => handleTabChange('insights')}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+              activeTab === 'insights'
+                ? 'bg-card text-foreground shadow-xs'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <BarChart3 className="w-3.5 h-3.5" />
+            <span>30-Day Metrics</span>
+          </button>
+        </div>
+      </PageHeader>
 
-      {/* Main Punch Card Section */}
-      <section aria-labelledby="punch-card-heading">
-        <PunchCard
-          todayAttendance={todayAttendance}
-          isLoading={isTodayLoading}
-          onRequestOvertime={handleOpenOvertime}
-        />
-      </section>
-
-      {/* 30-Day Metrics Overview */}
-      <section aria-labelledby="summary-metrics-heading">
-        <EmployeeSummaryCards
-          metrics={employeeMetrics}
-          isLoading={isSummaryLoading}
-        />
-      </section>
+      {/* Main Tab Content Section with aria-busy for transition feedback */}
+      <section
+        aria-busy={isPending}
+        className={`space-y-6 transition-opacity duration-200 ${
+          isPending ? 'opacity-70' : 'opacity-100'
+        }`}
+      >
+        {activeTab === 'attendance' ? (
+          <>
+            {/* Main Punch Card Section */}
+            <section aria-labelledby="punch-card-heading">
+              <PunchCard
+                todayAttendance={todayAttendance}
+                isLoading={isTodayLoading}
+                onRequestOvertime={handleOpenOvertime}
+              />
+            </section>
+          </>
+        ) : (
+          <>
+            {/* 30-Day Metrics Overview */}
+            <section aria-labelledby="summary-metrics-heading">
+              <EmployeeSummaryCards
+                metrics={employeeMetrics}
+                isLoading={isSummaryLoading}
+              />
+            </section>
+          </>
+        )}
 
       {/* Recent Attendance Activity */}
       <section aria-labelledby="recent-activity-heading">
@@ -225,6 +280,7 @@ export const EmployeeDashboardPage: React.FC = () => {
             )}
           </CardContent>
         </Card>
+      </section>
       </section>
 
       {/* Overtime Request Dialog */}
