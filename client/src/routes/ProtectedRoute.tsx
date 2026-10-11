@@ -1,9 +1,9 @@
-import React from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../features/auth/useAuth';
-import { AppShell } from '../components/layout/AppShell';
-import type { Role } from '../types/models';
-import { getRoleDefaultPath } from './roleUtils';
+import React from "react";
+import { Navigate, useLocation } from "react-router-dom";
+import { useAuth } from "../features/auth/useAuth";
+import { AppShell } from "../components/layout/AppShell";
+import type { Role } from "../types/models";
+import { getRoleDefaultPath } from "./roleUtils";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -19,7 +19,6 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   const location = useLocation();
   const { user, isLoading, isAuthenticated, isError } = useAuth();
 
-  // Full-page loading state while /auth/me is loading - NEVER redirect during loading
   if (isLoading) {
     return (
       <div
@@ -36,14 +35,15 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     );
   }
 
-  // Redirect to /login only after /auth/me finishes with 401 / error / unauthenticated
-  // Preserve the original location in router state so login returns the user to it.
   if (isError || !isAuthenticated || !user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // Role authorization
-  if (allowedRoles && allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {
+  if (
+    allowedRoles &&
+    allowedRoles.length > 0 &&
+    !allowedRoles.includes(user.role)
+  ) {
     const defaultPath = getRoleDefaultPath(user.role);
     return <Navigate to={defaultPath} replace />;
   }
