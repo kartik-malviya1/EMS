@@ -379,38 +379,20 @@ export const AdminUsersPage: React.FC = () => {
       {activeTab === 'invitations' && (
         <div className="space-y-4">
           {/* Email Status Banners */}
-          {emailStatus?.mode === 'development' && (
-            <div className="p-3.5 rounded-2xl border border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-300 text-xs flex items-start gap-2.5">
-              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
-              <div>
-                <span className="font-semibold">Development Mode:</span> invitation emails are not sent. A copyable one-time token link is generated for local testing.
-              </div>
-            </div>
-          )}
-
-          {emailStatus?.mode === 'resend' && !emailStatus?.configured && (
+          {emailStatus && !emailStatus.configured && (
             <div className="p-3.5 rounded-2xl border border-destructive/30 bg-destructive/10 text-destructive text-xs flex items-start gap-2.5">
               <XCircle className="w-4 h-4 shrink-0 mt-0.5" />
               <div>
-                <span className="font-semibold">Email Delivery Not Configured:</span> Resend API key is missing or set to placeholder. Real invitation emails cannot be dispatched until a valid <code className="font-mono bg-destructive/20 px-1 py-0.5 rounded">RESEND_API_KEY</code> is provided.
+                <span className="font-semibold">Email is not configured</span>: Resend API key is missing or not configured. Invitation emails cannot be sent.
               </div>
             </div>
           )}
 
-          {emailStatus?.mode === 'resend' && emailStatus?.configured && emailStatus?.sandboxSender && (
-            <div className="p-3.5 rounded-2xl border border-blue-500/30 bg-blue-500/10 text-blue-800 dark:text-blue-300 text-xs flex items-start gap-2.5">
-              <Mail className="w-4 h-4 shrink-0 mt-0.5 text-blue-600 dark:text-blue-400" />
+          {emailStatus?.configured && emailStatus.sandboxSender && (
+            <div className="p-3.5 rounded-2xl border border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-300 text-xs flex items-start gap-2.5">
+              <Mail className="w-4 h-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
               <div>
-                <span className="font-semibold">Sandbox sender:</span> only your own Resend account email can receive invitations. Verify a domain at{' '}
-                <a
-                  href="https://resend.com/domains"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline font-semibold"
-                >
-                  resend.com/domains
-                </a>{' '}
-                to invite others.
+                <span className="font-semibold">Sandbox sender:</span> only your own Resend account email can receive emails. Verify a domain to invite others.
               </div>
             </div>
           )}

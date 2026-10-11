@@ -103,14 +103,14 @@ export const InviteUserDialog: React.FC<InviteUserDialogProps> = ({
     }
   };
 
-  const handleCopyLink = async () => {
-    const link = createdResult?.devInvitationLink || createdResult?.devInvitationUrl;
-    if (!link) return;
+  const handleCopyMessageId = async () => {
+    const id = createdResult?.email?.providerMessageId;
+    if (!id) return;
     try {
-      await navigator.clipboard.writeText(link);
+      await navigator.clipboard.writeText(id);
       setHasCopied(true);
-      toast.success('Invitation link copied to clipboard');
-      setTimeout(() => setHasCopied(false), 2500);
+      toast.success('Message ID copied to clipboard');
+      setTimeout(() => setHasCopied(false), 2000);
     } catch {
       toast.error('Failed to copy to clipboard');
     }
@@ -118,9 +118,8 @@ export const InviteUserDialog: React.FC<InviteUserDialogProps> = ({
 
   // Determine delivery state
   const emailStatus = createdResult?.email?.status || createdResult?.invitation?.emailDeliveryStatus;
-  const emailMode = createdResult?.email?.mode || createdResult?.invitation?.emailMode;
   const emailError = createdResult?.email?.error || createdResult?.invitation?.emailLastError;
-  const devLink = createdResult?.devInvitationLink;
+  const providerMessageId = createdResult?.email?.providerMessageId || createdResult?.invitation?.emailProviderMessageId;
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -160,18 +159,37 @@ export const InviteUserDialog: React.FC<InviteUserDialogProps> = ({
 
             {/* Mutually Exclusive Email Outcome States */}
             {emailStatus === 'accepted' && (
-              <div className="p-4 rounded-xl border border-emerald-500/30 bg-emerald-500/5 space-y-1">
+              <div className="p-4 rounded-xl border border-emerald-500/30 bg-emerald-500/5 space-y-2">
                 <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-semibold text-xs">
                   <CheckCircle2 className="w-4 h-4 shrink-0" />
-                  <span>Email sent to {createdResult.invitation.email}</span>
+                  <span>Email accepted by Resend for {createdResult.invitation.email}.</span>
                 </div>
                 <p className="text-[11px] text-muted-foreground pl-6">
-                  Accepted by Resend. Inbox delivery is not confirmed.
+                  Inbox delivery is confirmed only when the status shows Delivered.
                 </p>
-                {createdResult.email?.providerMessageId && (
-                  <p className="text-[10px] font-mono text-muted-foreground/70 pl-6">
-                    ID: {createdResult.email.providerMessageId}
-                  </p>
+                {providerMessageId && (
+                  <div className="flex items-center justify-between gap-2 pl-6 pt-1">
+                    <span className="text-[10px] font-mono text-muted-foreground bg-muted/40 px-2 py-1 rounded">
+                      ID: {providerMessageId}
+                    </span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={handleCopyMessageId}
+                      className="h-7 text-xs gap-1"
+                    >
+                      {hasCopied ? (
+                        <>
+                          <Check className="w-3 h-3 text-emerald-600" /> Copied
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3 h-3" /> Copy ID
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 )}
               </div>
             )}
@@ -180,60 +198,19 @@ export const InviteUserDialog: React.FC<InviteUserDialogProps> = ({
               <div className="p-4 rounded-xl border border-destructive/30 bg-destructive/5 space-y-2">
                 <div className="flex items-center gap-2 text-destructive font-semibold text-xs">
                   <XCircle className="w-4 h-4 shrink-0" />
-                  <span>Email failed</span>
+                  <span>Email delivery failed</span>
                 </div>
                 <p className="text-[11px] text-destructive leading-relaxed pl-6">
                   {emailError?.message || 'Email delivery failed with provider error.'}
                 </p>
                 {emailError?.outcomeUnknown && (
-                  <p className="text-[11px] text-muted-foreground pl-6">
+                  <p className="text-[11px] text-amber-600 dark:text-amber-400 pl-6 font-medium">
                     It may still arrive; retry reuses the same request to avoid duplicates.
                   </p>
                 )}
                 <p className="text-[11px] text-muted-foreground pl-6">
-                  You can retry sending this email from the Invitations &amp; Onboarding table.
+                  You can retry delivery from the Invitations &amp; Onboarding table.
                 </p>
-              </div>
-            )}
-
-            {emailStatus === 'dev_link' && devLink && emailMode === 'development' && (
-              <div className="p-4 rounded-xl border border-amber-500/30 bg-amber-500/5 space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
-                    <Send className="w-3.5 h-3.5" /> Development mode — no email was sent
-                  </span>
-                  <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-400">
-                    Dev Link
-                  </span>
-                </div>
-                <p className="text-[11px] text-muted-foreground">
-                  Link shown once. Resending generates a new link.
-                </p>
-
-                <div className="flex items-center gap-2 mt-2">
-                  <Input
-                    readOnly
-                    value={devLink}
-                    className="font-mono text-[11px] h-8 bg-background"
-                  />
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={handleCopyLink}
-                    className="h-8 gap-1.5 shrink-0 text-xs"
-                  >
-                    {hasCopied ? (
-                      <>
-                        <Check className="w-3.5 h-3.5 text-emerald-600" /> Copied
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-3.5 h-3.5" /> Copy
-                      </>
-                    )}
-                  </Button>
-                </div>
               </div>
             )}
 

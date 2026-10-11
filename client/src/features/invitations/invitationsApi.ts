@@ -30,20 +30,19 @@ export interface CreateInvitationRequest {
 }
 
 export interface EmailStatusResponse {
-  mode: "development" | "resend";
   provider: "resend";
   configured: boolean;
   senderAddress: string;
   senderDomain: string;
   sandboxSender: boolean;
+  canReadStatus: boolean | null;
 }
 
 export interface CreateInvitationResponse {
   invitation: Invitation;
   user?: Partial<User>;
   email: {
-    mode: "development" | "resend";
-    status: "pending" | "accepted" | "failed" | "dev_link";
+    status: "pending" | "accepted" | "failed";
     providerMessageId?: string;
     error?: {
       code: string;
@@ -51,8 +50,6 @@ export interface CreateInvitationResponse {
       outcomeUnknown?: boolean;
     };
   };
-  devInvitationLink?: string;
-  devInvitationUrl?: string; // backwards compatibility alias
 }
 
 export interface ValidatedInvitationMetadata {
@@ -77,6 +74,13 @@ export interface AcceptInvitationResponse {
   success: boolean;
   message: string;
   email: string;
+}
+
+export interface EmailMessageStatusResponse {
+  id: string;
+  lastEvent: string | null;
+  createdAt: string | null;
+  to?: string[] | string;
 }
 
 export const invitationsApi = apiSlice.injectEndpoints({
@@ -142,6 +146,53 @@ export const invitationsApi = apiSlice.injectEndpoints({
       invalidatesTags: ["Invitation"],
     }),
 
+    checkDelivery: builder.mutation<
+      {
+        id: string;
+        status: string;
+        providerMessageId: string;
+        lastEvent: string | null;
+        lastEventAt: string | null;
+      },
+      string
+    >({
+      query: (id) => ({
+        url: `/admin/invitations/${id}/check-delivery`,
+        method: "POST",
+      }),
+      transformResponse: (response: {
+        data: {
+          id: string;
+          status: string;
+          providerMessageId: string;
+          lastEvent: string | null;
+          lastEventAt: string | null;
+        };
+      }) => response.data,
+      invalidatesTags: ["Invitation"],
+    }),
+
+    sendAdminTestEmail: builder.mutation<
+      { email: { status: string; providerMessageId: string } },
+      { to: string }
+    >({
+      query: (body) => ({
+        url: "/admin/email/test",
+        method: "POST",
+        body,
+      }),
+      transformResponse: (response: {
+        data: { email: { status: string; providerMessageId: string } };
+      }) => response.data,
+    }),
+
+    getMessageStatus: builder.query<EmailMessageStatusResponse, string>({
+      query: (providerMessageId) =>
+        `/admin/email/messages/${providerMessageId}`,
+      transformResponse: (response: { data: EmailMessageStatusResponse }) =>
+        response.data,
+    }),
+
     validateInvitationToken: builder.mutation<
       ValidatedInvitationMetadata,
       { token: string }
@@ -185,6 +236,10 @@ export const {
   useCreateInvitationMutation,
   useResendInvitationMutation,
   useRevokeInvitationMutation,
+  useCheckDeliveryMutation,
+  useSendAdminTestEmailMutation,
+  useGetMessageStatusQuery,
+  useLazyGetMessageStatusQuery,
   useValidateInvitationTokenMutation,
   useAcceptInvitationMutation,
 } = invitationsApi;

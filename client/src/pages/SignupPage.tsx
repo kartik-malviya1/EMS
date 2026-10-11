@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { User, Lock, Mail, AlertCircle, ArrowRight } from 'lucide-react';
-import { useSignupMutation } from '../features/auth/authApi';
+import { useSignupMutation, useGetAuthConfigQuery } from '../features/auth/authApi';
 import { useAppDispatch } from '../app/hooks';
 import { setCredentials } from '../features/auth/authSlice';
 import { Button } from '../components/ui/button';
@@ -19,8 +19,10 @@ export const SignupPage: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const dispatch = useAppDispatch();
+  const { data: authConfig, isLoading: isConfigLoading } = useGetAuthConfigQuery();
   const [signupMutation, { isLoading }] = useSignupMutation();
   const [serverError, setServerError] = useState<string | null>(null);
+  const [isSignupDisabled, setIsSignupDisabled] = useState(false);
 
   // If token is present, forward to /accept-invitation
   useEffect(() => {
@@ -69,12 +71,16 @@ export const SignupPage: React.FC = () => {
       };
 
       const errorObj = errorPayload?.data?.error;
+      if (errorObj?.code === 'SIGNUP_DISABLED') {
+        setIsSignupDisabled(true);
+        setServerError('Registration is invitation-only');
+        return;
+      }
+
       const message =
-        errorObj?.code === 'SIGNUP_DISABLED'
-          ? 'Registration is invitation-only'
-          : errorObj?.message ||
-            (typeof errorPayload?.error === 'string' ? errorPayload.error : null) ||
-            'Failed to create account. Please try again.';
+        errorObj?.message ||
+        (typeof errorPayload?.error === 'string' ? errorPayload.error : null) ||
+        'Failed to create account. Please try again.';
 
       setServerError(message);
 
@@ -115,14 +121,42 @@ export const SignupPage: React.FC = () => {
         </div>
 
         <Card className="border-border/80 shadow-md">
-          <CardHeader>
-            <CardTitle>Sign Up</CardTitle>
-            <CardDescription>
-              Enter your personal details to register
-            </CardDescription>
-          </CardHeader>
+          {((!isConfigLoading && authConfig?.publicRegistrationEnabled === false) || isSignupDisabled) ? (
+            <>
+              <CardHeader className="text-center pb-2">
+                <CardTitle className="text-lg font-bold">Registration is invitation-only</CardTitle>
+                <CardDescription className="text-xs">
+                  Public self-registration is currently disabled. New members must be invited by an organization administrator.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4 pt-4 text-center">
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  If you have already received an invitation email, open the link provided in the message. If your link has expired or never arrived, request a fresh link below.
+                </p>
+                <Button
+                  onClick={() => navigate('/request-invitation')}
+                  className="w-full h-10.5 rounded-xl text-xs font-semibold gap-1.5 shadow-md shadow-primary/20"
+                >
+                  <span>Request Invitation Link</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Button>
+              </CardContent>
+              <CardFooter className="justify-center border-t border-border/60 pt-4">
+                <Link to="/login" className="text-xs font-semibold text-primary hover:underline">
+                  Return to Sign In
+                </Link>
+              </CardFooter>
+            </>
+          ) : (
+            <>
+              <CardHeader>
+                <CardTitle>Sign Up</CardTitle>
+                <CardDescription>
+                  Enter your personal details to register
+                </CardDescription>
+              </CardHeader>
 
-          <form onSubmit={handleSubmit(onSubmit)} noValidate>
+              <form onSubmit={handleSubmit(onSubmit)} noValidate>
             <CardContent className="space-y-4">
               {serverError && (
                 <div
@@ -246,6 +280,8 @@ export const SignupPage: React.FC = () => {
               </p>
             </CardFooter>
           </form>
+        </>
+      )}
         </Card>
       </div>
     </div>

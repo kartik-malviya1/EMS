@@ -97,8 +97,6 @@ export const AcceptInvitationPage: React.FC = () => {
   // Validate token on mount
   useEffect(() => {
     if (!token) {
-      setValidationErrorCode('TOKEN_MISSING');
-      setValidationErrorMessage('No invitation token was provided in the link.');
       return;
     }
 
@@ -187,8 +185,38 @@ export const AcceptInvitationPage: React.FC = () => {
           </h1>
         </div>
 
-        {/* State 1: Validating Token */}
-        {isValidating && (
+        {/* State 1: No Token Provided — Friendly Panel */}
+        {!token && (
+          <div className="space-y-5 text-center py-4 animate-in fade-in">
+            <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary mx-auto">
+              <Mail className="w-6 h-6" />
+            </div>
+            <div className="space-y-1.5">
+              <h2 className="text-base font-bold text-foreground">Invitation Link Required</h2>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Open the link from your invitation email, or request a new one
+              </p>
+            </div>
+            <div className="flex flex-col gap-2 pt-2">
+              <Button
+                onClick={() => navigate('/request-invitation')}
+                className="w-full h-10 rounded-xl text-xs font-semibold gap-1.5 shadow-md shadow-primary/20"
+              >
+                <span>Request a new link</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Button>
+              <Link
+                to="/login"
+                className="text-center text-xs font-semibold text-muted-foreground hover:text-foreground py-1.5 transition-colors"
+              >
+                Return to Sign In
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {/* State 2: Validating Token */}
+        {token && isValidating && (
           <div className="py-10 text-center space-y-3">
             <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto" />
             <p className="text-xs font-medium text-muted-foreground">
@@ -197,8 +225,8 @@ export const AcceptInvitationPage: React.FC = () => {
           </div>
         )}
 
-        {/* State 2: Successfully Activated */}
-        {!isValidating && hasActivated && (
+        {/* State 3: Successfully Activated */}
+        {token && !isValidating && hasActivated && (
           <div className="space-y-5 text-center py-4">
             <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 mx-auto">
               <CheckCircle2 className="w-8 h-8" />
@@ -219,17 +247,15 @@ export const AcceptInvitationPage: React.FC = () => {
           </div>
         )}
 
-        {/* State 3: Validation Error / Expired / Revoked / Already Accepted */}
-        {!isValidating && !hasActivated && validationErrorCode && (
+        {/* State 4: Validation Error / Expired / Revoked / Already Accepted */}
+        {token && !isValidating && !hasActivated && validationErrorCode && (
           <div className="space-y-5 py-2">
             <div className="p-4 rounded-xl border border-destructive/20 bg-destructive/5 space-y-3">
               <div className="flex items-center gap-2.5 text-destructive font-semibold text-xs">
                 {validationErrorCode === 'TOKEN_EXPIRED' ? (
                   <Clock className="w-4 h-4 shrink-0" />
-                ) : validationErrorCode === 'TOKEN_REVOKED' ? (
+                ) : validationErrorCode === 'TOKEN_REVOKED' || validationErrorCode === 'TOKEN_ALREADY_ACCEPTED' ? (
                   <Ban className="w-4 h-4 shrink-0" />
-                ) : validationErrorCode === 'TOKEN_ALREADY_ACCEPTED' ? (
-                  <UserCheck className="w-4 h-4 shrink-0 text-emerald-600" />
                 ) : (
                   <AlertCircle className="w-4 h-4 shrink-0" />
                 )}
@@ -239,44 +265,54 @@ export const AcceptInvitationPage: React.FC = () => {
                     : validationErrorCode === 'TOKEN_REVOKED'
                     ? 'Invitation Revoked'
                     : validationErrorCode === 'TOKEN_ALREADY_ACCEPTED'
-                    ? 'Invitation Already Accepted'
+                    ? 'Invitation Already Used'
                     : 'Invalid Invitation Link'}
                 </span>
               </div>
 
               <p className="text-xs text-muted-foreground leading-relaxed">
-                {validationErrorMessage}
+                {validationErrorCode === 'TOKEN_REVOKED' || validationErrorCode === 'TOKEN_ALREADY_ACCEPTED'
+                  ? 'This invitation is no longer valid. Contact your administrator.'
+                  : validationErrorMessage || 'The invitation link may be invalid or has expired.'}
               </p>
 
               {validationErrorCode === 'TOKEN_EXPIRED' && (
                 <p className="text-[11px] text-muted-foreground/80 italic">
-                  Invitations expire after 72 hours for security. Please request your administrator to resend a renewed invitation.
+                  Invitations expire after 72 hours for security.
                 </p>
               )}
             </div>
 
             <div className="flex flex-col gap-2 pt-2">
-              {validationErrorCode === 'TOKEN_ALREADY_ACCEPTED' ? (
-                <Button
-                  onClick={() => navigate('/login')}
-                  className="w-full h-10 rounded-xl text-xs font-semibold gap-1.5"
-                >
-                  Go to Sign In <ArrowRight className="w-3.5 h-3.5" />
-                </Button>
-              ) : (
+              {validationErrorCode === 'TOKEN_REVOKED' || validationErrorCode === 'TOKEN_ALREADY_ACCEPTED' ? (
                 <Link
                   to="/login"
                   className="text-center text-xs font-semibold text-primary hover:underline py-2"
                 >
                   Return to Sign In
                 </Link>
+              ) : (
+                <>
+                  <Button
+                    onClick={() => navigate('/request-invitation')}
+                    className="w-full h-10 rounded-xl text-xs font-semibold gap-1.5"
+                  >
+                    Request a new link <ArrowRight className="w-3.5 h-3.5" />
+                  </Button>
+                  <Link
+                    to="/login"
+                    className="text-center text-xs font-semibold text-muted-foreground hover:text-foreground py-1.5 transition-colors"
+                  >
+                    Return to Sign In
+                  </Link>
+                </>
               )}
             </div>
           </div>
         )}
 
-        {/* State 4: Valid Invitation — Form for Password Creation */}
-        {!isValidating && !hasActivated && !validationErrorCode && invitationData && (
+        {/* State 5: Valid Invitation — Form for Password Creation */}
+        {token && !isValidating && !hasActivated && !validationErrorCode && invitationData && (
           <div className="space-y-5">
             {/* Invitee Metadata Card */}
             <div className="p-3.5 rounded-xl border border-border/70 bg-muted/20 space-y-1.5 text-xs">

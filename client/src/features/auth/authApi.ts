@@ -87,6 +87,20 @@ export const authApi = apiSlice.injectEndpoints({
       transformResponse: (response: ApiResponse<SocketTokenResponse>) =>
         response.data.socketToken,
     }),
+
+    getAuthConfig: builder.query<{ publicRegistrationEnabled: boolean }, void>({
+      query: () => '/auth/config',
+      transformResponse: (response: ApiResponse<{ publicRegistrationEnabled: boolean }>) =>
+        response.data,
+    }),
+
+    requestInvitationLink: builder.mutation<{ message: string }, { email: string }>({
+      query: (body) => ({
+        url: '/auth/invitations/request-link',
+        method: 'POST',
+        body,
+      }),
+    }),
   }),
 });
 
@@ -97,4 +111,6 @@ export const {
   useLogoutMutation,
   useGetSocketTokenQuery,
   useLazyGetSocketTokenQuery,
+  useGetAuthConfigQuery,
+  useRequestInvitationLinkMutation,
 } = authApi;

@@ -3,6 +3,7 @@ import {
   useGetInvitationsQuery,
   useResendInvitationMutation,
   useRevokeInvitationMutation,
+  useCheckDeliveryMutation,
 } from '../../features/invitations/invitationsApi';
 import type { Invitation, InvitationStatus } from '../../types/models';
 import { Button } from '../ui/button';
@@ -10,14 +11,6 @@ import { Input } from '../ui/input';
 import { Skeletons } from '../common/Skeletons';
 import { EmptyState } from '../common/EmptyState';
 import { ErrorState } from '../common/ErrorState';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from '../ui/dialog';
 import {
   Search,
   RotateCcw,
@@ -32,12 +25,12 @@ import {
   AlertTriangle,
   Clock,
   XCircle,
-  Copy,
-  Check,
   Loader2,
+  Activity,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getApiErrorMessage } from '../../lib/utils';
+import { formatLastEvent } from '../../lib/formatLastEvent';
 
 export const InvitationsTable: React.FC = () => {
   const [search, setSearch] = useState('');
@@ -49,14 +42,8 @@ export const InvitationsTable: React.FC = () => {
   const [cooldowns, setCooldowns] = useState<Record<string, number>>({});
   // Track in-flight resend IDs
   const [resendingId, setResendingId] = useState<string | null>(null);
-
-  // Dev link modal when resending in development mode
-  const [devLinkModal, setDevLinkModal] = useState<{ open: boolean; link: string; email: string }>({
-    open: false,
-    link: '',
-    email: '',
-  });
-  const [hasCopiedDevLink, setHasCopiedDevLink] = useState(false);
+  // Track in-flight check delivery IDs
+  const [checkingDeliveryId, setCheckingDeliveryId] = useState<string | null>(null);
 
   const queryParams = {
     search: search.trim() || undefined,
@@ -68,6 +55,7 @@ export const InvitationsTable: React.FC = () => {
   const { data, isLoading, isError, refetch } = useGetInvitationsQuery(queryParams);
   const [resendInvitation] = useResendInvitationMutation();
   const [revokeInvitation, { isLoading: isRevoking }] = useRevokeInvitationMutation();
+  const [checkDelivery] = useCheckDeliveryMutation();
 
   const invitations = data?.data || [];
   const meta = data?.meta;
@@ -124,17 +112,23 @@ export const InvitationsTable: React.FC = () => {
       const res = await resendInvitation(id).unwrap();
 
       if (res.email?.status === 'accepted') {
-        toast.success(`Invitation resent to ${email}. Accepted by Resend.`);
-      } else if (res.devInvitationLink) {
-        toast.success(`Fresh development invitation link generated.`);
-        setDevLinkModal({ open: true, link: res.devInvitationLink, email });
+        const msgId = res.email.providerMessageId ? ` (ID: ${res.email.providerMessageId})` : '';
+        toast.success(
+          `Email accepted by Resend for ${email}. Inbox delivery is confirmed only when the status shows Delivered.${msgId}`
+        );
       } else {
         toast.success(`Invitation processed for ${email}`);
       }
     } catch (err: unknown) {
       const payload = err as {
         status?: number;
-        data?: { error?: { code?: string; message?: string; details?: { retryAfterSeconds?: number } } };
+        data?: {
+          error?: {
+            code?: string;
+            message?: string;
+            details?: { retryAfterSeconds?: number; outcomeUnknown?: boolean };
+          };
+        };
       };
 
       const errorObj = payload?.data?.error;
@@ -147,9 +141,27 @@ export const InvitationsTable: React.FC = () => {
       }
 
       const msg = getApiErrorMessage(err, 'Failed to resend invitation email.');
-      toast.error(msg);
+      const outcomeNote = errorObj?.details?.outcomeUnknown
+        ? ' It may still arrive; retry reuses the same request to avoid duplicates.'
+        : '';
+      toast.error(`${msg}${outcomeNote}`);
     } finally {
       setResendingId(null);
+    }
+  };
+
+  const handleCheckDelivery = async (id: string, email: string) => {
+    if (checkingDeliveryId === id) return;
+    setCheckingDeliveryId(id);
+    try {
+      const res = await checkDelivery(id).unwrap();
+      const eventInfo = formatLastEvent(res.lastEvent);
+      toast.success(`Delivery status for ${email}: ${eventInfo.label}`);
+    } catch (err: unknown) {
+      const msg = getApiErrorMessage(err, 'Failed to check delivery status with Resend');
+      toast.error(msg);
+    } finally {
+      setCheckingDeliveryId(null);
     }
   };
 
@@ -197,60 +209,77 @@ export const InvitationsTable: React.FC = () => {
     }
   };
 
-  const renderDeliveryBadge = (inv: Invitation) => {
+  const renderDeliveryCell = (inv: Invitation) => {
     const deliveryStatus = inv.emailDeliveryStatus;
     const error = inv.emailLastError;
+    const invId = inv.id || inv._id || '';
+    const isChecking = checkingDeliveryId === invId;
+    const hasMessageId = Boolean(inv.emailProviderMessageId);
+    const event = formatLastEvent(inv.emailLastEvent);
 
-    switch (deliveryStatus) {
-      case 'accepted':
-        return (
-          <div className="space-y-0.5">
+    return (
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {deliveryStatus === 'accepted' ? (
             <span
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-              title="Accepted by Resend. Inbox delivery is not confirmed."
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
+              title="Accepted by Resend API. Inbox delivery is confirmed only when status shows Delivered."
             >
               <Send className="w-2.5 h-2.5" /> Accepted
             </span>
-            <div className="text-[10px] text-muted-foreground">Accepted by Resend</div>
-          </div>
-        );
-      case 'failed':
-        return (
-          <div className="space-y-0.5 max-w-[200px]">
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-rose-500/10 text-rose-600 dark:text-rose-400">
-              <AlertTriangle className="w-2.5 h-2.5" /> Email Failed
+          ) : deliveryStatus === 'failed' ? (
+            <span
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20"
+              title={error?.message || 'Email delivery failed'}
+            >
+              <AlertTriangle className="w-2.5 h-2.5" /> Failed
             </span>
-            {error?.message && (
-              <div
-                className="text-[10px] text-destructive leading-tight truncate"
-                title={`${error.message}${error.outcomeUnknown ? ' (It may still arrive; retry reuses the same request)' : ''}`}
-              >
-                {error.message}
-              </div>
-            )}
-            {error?.outcomeUnknown && (
-              <div className="text-[9px] text-amber-600 dark:text-amber-400 font-medium">
-                Delivery outcome unconfirmed
-              </div>
-            )}
-          </div>
-        );
-      case 'dev_link':
-        return (
-          <div className="space-y-0.5">
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-400">
-              <Send className="w-2.5 h-2.5" /> Dev Link
+          ) : (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-500/10 text-slate-500 border border-slate-500/20">
+              <Clock className="w-2.5 h-2.5" /> Pending
             </span>
-            <div className="text-[10px] text-muted-foreground">Local simulated</div>
+          )}
+
+          {/* Resend Last Event Chip */}
+          {inv.emailLastEvent && (
+            <span
+              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${event.className}`}
+              title={`Resend Event: ${event.label}${inv.emailLastEventAt ? ` (${new Date(inv.emailLastEventAt).toLocaleTimeString()})` : ''}`}
+            >
+              <Activity className="w-2.5 h-2.5" /> {event.label}
+            </span>
+          )}
+
+          {/* Check Delivery Button */}
+          {hasMessageId && (
+            <button
+              type="button"
+              onClick={() => handleCheckDelivery(invId, inv.email)}
+              disabled={isChecking}
+              className="inline-flex items-center justify-center h-5 w-5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 cursor-pointer"
+              title="Check delivery status with Resend"
+              aria-label={`Check delivery status for ${inv.email}`}
+            >
+              {isChecking ? (
+                <Loader2 className="w-3 h-3 animate-spin text-primary" />
+              ) : (
+                <Activity className="w-3 h-3" />
+              )}
+            </button>
+          )}
+        </div>
+
+        {/* Error message detail if failed */}
+        {deliveryStatus === 'failed' && error?.message && (
+          <div
+            className="text-[10px] text-destructive leading-tight max-w-[200px] truncate"
+            title={`${error.message}${error.outcomeUnknown ? ' (It may still arrive; retry reuses the same request)' : ''}`}
+          >
+            {error.message}
           </div>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-500/10 text-slate-500">
-            <Clock className="w-2.5 h-2.5" /> Pending
-          </span>
-        );
-    }
+        )}
+      </div>
+    );
   };
 
   return (
@@ -371,7 +400,7 @@ export const InvitationsTable: React.FC = () => {
                         </td>
                         <td className="py-3 px-4">{renderStatusBadge(inv.status)}</td>
                         <td className="py-3 px-4">
-                          {renderDeliveryBadge(inv)}
+                          {renderDeliveryCell(inv)}
                           {inv.resendCount && inv.resendCount > 0 ? (
                             <div className="text-[10px] text-muted-foreground mt-0.5">
                               Resent {inv.resendCount} {inv.resendCount === 1 ? 'time' : 'times'}
@@ -472,75 +501,6 @@ export const InvitationsTable: React.FC = () => {
             )}
           </div>
         </section>
-      )}
-
-      {/* Dev Link Resend Modal */}
-      {devLinkModal.open && (
-        <Dialog
-          open={devLinkModal.open}
-          onOpenChange={(open) => setDevLinkModal((prev) => ({ ...prev, open }))}
-        >
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle className="text-base font-bold flex items-center gap-2">
-                <Send className="w-4 h-4 text-amber-600" /> Fresh Dev Invitation Link
-              </DialogTitle>
-              <DialogDescription className="text-xs text-muted-foreground">
-                In Development mode, no live email was sent. A fresh invitation token was generated for{' '}
-                <strong>{devLinkModal.email}</strong>.
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="p-3 rounded-xl border border-amber-500/30 bg-amber-500/5 space-y-2 mt-2">
-              <p className="text-[11px] text-muted-foreground">
-                Link shown once. Resending generates a new link.
-              </p>
-              <div className="flex items-center gap-2">
-                <Input
-                  readOnly
-                  value={devLinkModal.link}
-                  className="font-mono text-[11px] h-8 bg-background"
-                />
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={async () => {
-                    try {
-                      await navigator.clipboard.writeText(devLinkModal.link);
-                      setHasCopiedDevLink(true);
-                      toast.success('Link copied to clipboard');
-                      setTimeout(() => setHasCopiedDevLink(false), 2000);
-                    } catch {
-                      toast.error('Failed to copy');
-                    }
-                  }}
-                  className="h-8 gap-1 shrink-0 text-xs"
-                >
-                  {hasCopiedDevLink ? (
-                    <>
-                      <Check className="w-3.5 h-3.5 text-emerald-600" /> Copied
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3.5 h-3.5" /> Copy
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
-
-            <DialogFooter className="mt-4">
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => setDevLinkModal({ open: false, link: '', email: '' })}
-              >
-                Close
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
       )}
     </div>
   );

@@ -15,7 +15,7 @@ export type AccountStatus = 'invited' | 'active' | 'suspended' | 'deactivated';
 
 export type InvitationStatus = 'pending' | 'accepted' | 'expired' | 'revoked';
 
-export type EmailDeliveryStatus = 'pending' | 'accepted' | 'failed' | 'dev_link';
+export type EmailDeliveryStatus = 'pending' | 'accepted' | 'failed';
 
 export interface User {
   _id?: string;
@@ -52,8 +52,9 @@ export interface Invitation {
   lastSentAt?: string;
   resendCount?: number;
   emailDeliveryStatus?: EmailDeliveryStatus;
-  emailMode?: 'resend' | 'development';
   emailProviderMessageId?: string | null;
+  emailLastEvent?: string | null;
+  emailLastEventAt?: string | null;
   emailLastError?: {
     code: string;
     message: string;

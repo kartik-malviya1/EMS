@@ -7,7 +7,7 @@ import {
   loginSchema,
   type LoginFormValues,
 } from '../validators/auth.validator';
-import { useLoginMutation } from '../features/auth/authApi';
+import { useLoginMutation, useGetAuthConfigQuery } from '../features/auth/authApi';
 import { getRoleDefaultPath } from '../routes/roleUtils';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -19,6 +19,7 @@ export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [loginMutation, { isLoading }] = useLoginMutation();
+  const { data: authConfig } = useGetAuthConfigQuery();
   const [serverError, setServerError] = useState<string | null>(null);
 
   const {
@@ -167,6 +168,7 @@ export const LoginPage: React.FC = () => {
           </div>
 
           <Button
+            id="login-submit-button"
             type="submit"
             className="w-full h-11 rounded-xl text-sm font-semibold shadow-md shadow-primary/20 hover:shadow-primary/30 active:scale-[0.99] transition-all cursor-pointer"
             disabled={isLoading}
@@ -182,15 +184,28 @@ export const LoginPage: React.FC = () => {
           </Button>
         </form>
 
-        {/* Invitation Activation Link */}
-        <div className="text-center text-xs text-muted-foreground pt-2 border-t border-border/60">
-          Received an invitation?{' '}
-          <Link
-            to="/accept-invitation"
-            className="font-semibold text-primary hover:underline transition-colors"
-          >
-            Activate account
-          </Link>
+        {/* Footer Links */}
+        <div className="space-y-2 text-center text-xs text-muted-foreground pt-4 border-t border-border/60">
+          {authConfig?.publicRegistrationEnabled && (
+            <div>
+              New here?{' '}
+              <Link
+                to="/signup"
+                className="font-semibold text-primary hover:underline transition-colors"
+              >
+                Create an account
+              </Link>
+            </div>
+          )}
+          <div>
+            Invited but didn't get the email?{' '}
+            <Link
+              to="/request-invitation"
+              className="font-semibold text-primary hover:underline transition-colors"
+            >
+              Request a new link
+            </Link>
+          </div>
         </div>
       </div>
     </div>
