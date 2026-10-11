@@ -28,7 +28,11 @@ export const notifySessionExpiredOnce = () => {
   }
 };
 
-const getBaseUrl = () => {
+export const getBaseUrl = (): string => {
+  const envUrl = import.meta.env.VITE_API_BASE_URL;
+  if (envUrl) {
+    return envUrl.endsWith('/') ? envUrl.slice(0, -1) : envUrl;
+  }
   if (
     typeof window !== 'undefined' &&
     window.location?.origin &&

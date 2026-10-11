@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { getBaseUrl } from '../../features/api/apiSlice';
 import { Camera, MapPin, Clock, ExternalLink } from 'lucide-react';
 import { DateTime } from 'luxon';
 import {
@@ -26,8 +27,8 @@ export const SelfiePreviewDialog: React.FC<SelfiePreviewDialogProps> = ({
   if (!attendance) return null;
 
   const attendanceId = attendance.id || attendance._id;
-  const punchInSelfieUrl = `/api/attendance/${attendanceId}/selfies/punch-in`;
-  const punchOutSelfieUrl = `/api/attendance/${attendanceId}/selfies/punch-out`;
+  const punchInSelfieUrl = `${getBaseUrl()}/attendance/${attendanceId}/selfies/punch-in`;
+  const punchOutSelfieUrl = `${getBaseUrl()}/attendance/${attendanceId}/selfies/punch-out`;
 
   const formatCoords = (lat?: number, lng?: number) => {
     if (lat === undefined || lng === undefined) return null;

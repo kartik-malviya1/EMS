@@ -22,6 +22,7 @@ import {
 import { useReviewVerificationMutation } from '../../features/attendance/attendanceApi';
 import type { Attendance, User } from '../../types/models';
 import { toast } from 'sonner';
+import { getBaseUrl } from '../../features/api/apiSlice';
 
 interface AttendanceReviewDialogProps {
   attendance: Attendance | null;
@@ -136,7 +137,7 @@ export const AttendanceReviewDialog: React.FC<AttendanceReviewDialogProps> = ({
               {/* Punch-In Photo */}
               <div className="aspect-video w-full rounded-lg overflow-hidden bg-muted/60 relative border border-border/60 flex items-center justify-center mb-3">
                 <img
-                  src={`/api/attendance/${attendanceId}/selfies/punch-in`}
+                  src={`${getBaseUrl()}/attendance/${attendanceId}/selfies/punch-in`}
                   alt="Punch-in selfie"
                   className="w-full h-full object-cover"
                   onError={(e) => {
@@ -233,7 +234,7 @@ export const AttendanceReviewDialog: React.FC<AttendanceReviewDialogProps> = ({
               <div className="aspect-video w-full rounded-lg overflow-hidden bg-muted/60 relative border border-border/60 flex items-center justify-center mb-3">
                 {attendance.punchOut ? (
                   <img
-                    src={`/api/attendance/${attendanceId}/selfies/punch-out`}
+                    src={`${getBaseUrl()}/attendance/${attendanceId}/selfies/punch-out`}
                     alt="Punch-out selfie"
                     className="w-full h-full object-cover"
                     onError={(e) => {

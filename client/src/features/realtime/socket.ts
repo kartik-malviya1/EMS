@@ -1,7 +1,7 @@
 import { io, Socket } from 'socket.io-client';
 import { toast } from 'sonner';
 import { store } from '../../app/store';
-import { apiSlice } from '../api/apiSlice';
+import { apiSlice, getBaseUrl } from '../api/apiSlice';
 import type { Notification } from '../../types/models';
 
 export type SocketConnectionStatus = 'connected' | 'connecting' | 'disconnected';
@@ -31,7 +31,7 @@ export function getSocketStatus(): SocketConnectionStatus {
 
 export async function fetchSocketToken(): Promise<string | null> {
   try {
-    const res = await fetch('/api/auth/socket-token', {
+    const res = await fetch(`${getBaseUrl()}/auth/socket-token`, {
       method: 'GET',
       credentials: 'include',
     });
@@ -46,6 +46,14 @@ export async function fetchSocketToken(): Promise<string | null> {
 function getSocketUrl(): string {
   if (import.meta.env.VITE_SOCKET_URL) {
     return import.meta.env.VITE_SOCKET_URL;
+  }
+  if (import.meta.env.VITE_API_BASE_URL) {
+    try {
+      const parsed = new URL(import.meta.env.VITE_API_BASE_URL);
+      return parsed.origin;
+    } catch {
+      // ignore
+    }
   }
   if (typeof window !== 'undefined' && window.location?.origin) {
     return window.location.origin;

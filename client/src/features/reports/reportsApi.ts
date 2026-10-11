@@ -1,4 +1,4 @@
-import { apiSlice } from '../api/apiSlice';
+import { apiSlice, getBaseUrl } from '../api/apiSlice';
 import type {
   ReportRow,
   PaginationMeta,
@@ -69,7 +69,7 @@ export async function downloadReportExport(
   if (params.to) query.set('to', params.to);
   if (params.userId) query.set('userId', params.userId);
 
-  const res = await fetch(`/api/reports/daily/export?${query.toString()}`, {
+  const res = await fetch(`${getBaseUrl()}/reports/daily/export?${query.toString()}`, {
     method: 'GET',
     credentials: 'include',
   });
