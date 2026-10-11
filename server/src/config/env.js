@@ -54,8 +54,7 @@ const envSchema = z
     AUTO_CLOSE_TIME: z.string().default('00:10'),
 
     // Email & Invitations
-    EMAIL_PROVIDER: z.enum(['resend']).default('resend'),
-    EMAIL_MODE: z.enum(['development', 'resend', 'test']).default('development'),
+    EMAIL_PROVIDER: z.literal('resend').default('resend'),
     RESEND_API_KEY: z.string().optional(),
     EMAIL_FROM: z.string().default('AMS Portal <onboarding@resend.dev>'),
     EMAIL_REPLY_TO: z.string().email().optional().or(z.literal('')),
@@ -72,7 +71,7 @@ const envSchema = z
       .default(true),
   })
   .superRefine((data, ctx) => {
-    // Normalise APP_BASE_URL
+    // Normalise APP_BASE_URL (no trailing slash, no path)
     try {
       const parsedUrl = new URL(data.APP_BASE_URL);
       if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
@@ -92,15 +91,15 @@ const envSchema = z
       });
     }
 
-    // EMAIL_MODE=resend validations
-    if (data.EMAIL_MODE === 'resend') {
+    // In NODE_ENV=production, fail fast if missing/placeholder key or invalid from address
+    if (data.NODE_ENV === 'production') {
       const key = data.RESEND_API_KEY?.trim() || '';
       if (!key || !key.startsWith('re_') || key === 're_xxxxxxxxx') {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ['RESEND_API_KEY'],
           message:
-            'RESEND_API_KEY must be a valid key starting with "re_" and not "re_xxxxxxxxx" when EMAIL_MODE=resend',
+            'RESEND_API_KEY must be a valid key starting with "re_" and not "re_xxxxxxxxx" in production',
         });
       }
 
@@ -109,18 +108,7 @@ const envSchema = z
           code: z.ZodIssueCode.custom,
           path: ['EMAIL_FROM'],
           message:
-            'EMAIL_FROM must be a valid email address or "Display Name <address@domain.com>"',
-        });
-      }
-    }
-
-    // Production rules
-    if (data.NODE_ENV === 'production') {
-      if (data.EMAIL_MODE !== 'resend') {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['EMAIL_MODE'],
-          message: 'EMAIL_MODE must be set to "resend" in production',
+            'EMAIL_FROM must be a valid email address or "Display Name <address@domain.com>" in production',
         });
       }
 
@@ -162,6 +150,26 @@ export const validateEnv = (customEnv = process.env) => {
     }
     throw new Error('Invalid environment configuration', { cause: error });
   }
+};
+
+export const isEmailConfigured = (envConfig = env) => {
+  const key = envConfig.RESEND_API_KEY?.trim() || '';
+  const from = envConfig.EMAIL_FROM?.trim() || '';
+  const hasValidKey = Boolean(key && key.startsWith('re_') && key !== 're_xxxxxxxxx');
+  const hasValidFrom = Boolean(from && emailFromRegex.test(from));
+  return hasValidKey && hasValidFrom;
+};
+
+export const getSenderInfo = (envConfig = env) => {
+  const { address, domain } = parseEmailAddress(envConfig.EMAIL_FROM || 'AMS Portal <onboarding@resend.dev>');
+  return {
+    provider: envConfig.EMAIL_PROVIDER || 'resend',
+    configured: isEmailConfigured(envConfig),
+    senderAddress: address,
+    senderDomain: domain,
+    sandboxSender: domain === 'resend.dev',
+    canReadStatus: null,
+  };
 };
 
 // In test environment, provide safe defaults if MONGODB_URI/JWT_SECRET are not pre-set

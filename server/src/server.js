@@ -1,6 +1,6 @@
 import http from 'http';
 import app from './app.js';
-import { env } from './config/env.js';
+import { env, isEmailConfigured } from './config/env.js';
 import { connectDB, disconnectDB } from './config/db.js';
 import { logger } from './utils/logger.js';
 import { initSocketServer } from './realtime/socket.js';
@@ -16,6 +16,10 @@ const startServer = async () => {
     const httpServer = http.createServer(app);
     initSocketServer(httpServer);
     initCronJobs();
+
+    if (!isEmailConfigured(env)) {
+      logger.warn('Email provider is not configured. Invitation emails and email delivery endpoints will return 503.');
+    }
 
     server = httpServer.listen(PORT, () => {
       logger.info(`Server running on port ${PORT} in ${env.NODE_ENV || 'development'} mode`);
