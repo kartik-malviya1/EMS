@@ -12,10 +12,12 @@ Source requirements: the "Full-Stack MERN Assessment: Attendance Management Syst
 - Never fake results: no fabricated test output, deployment links, or "works" claims for untested code. Mark unverified things "UNVERIFIED".
 - No unnecessary dependencies. Check `package.json` before installing. No docs instead of code.
 - Never commit secrets. `.env` is gitignored; `.env.example` is committed with placeholders only.
+- Secrets: never print, log, echo, or include in reports any API key, password, JWT secret, DB URI or raw invitation token; say 'set/unset' instead. If a secret appears in output by accident, stop and tell the user to rotate it.
+- If code and CLAUDE.md disagree, the discrepancy is reported; when a code change is intentional, update CLAUDE.md in the same commit.
 
 ## 1. Stack (pinned)
 
-Backend: Node 20+ (set `engines`), Express 5, ES modules, Mongoose 9, Zod, Morgan, bcryptjs (cost 12), jsonwebtoken, cookie-parser, helmet, cors, express-rate-limit, multer (memory storage), cloudinary, luxon, node-cron, socket.io, exceljs, pdfkit, dotenv.
+Backend: Node 20+ (set `engines`), Express 5, ES modules, Mongoose 9, Zod, Morgan, bcryptjs (cost 12), jsonwebtoken, cookie-parser, helmet, cors, express-rate-limit, multer (memory storage), cloudinary, luxon, node-cron, socket.io, exceljs, pdfkit, resend (official Resend Node SDK), dotenv. Token generation uses Node's built-in `crypto`.
 Backend tests: Vitest + Supertest + mongodb-memory-server (standalone, no replica set).
 Frontend: React 19 + Vite + TypeScript (strict), Redux Toolkit + RTK Query, react-router-dom, Tailwind CSS + shadcn/ui (Radix) + lucide-react, react-hook-form + @hookform/resolvers + zod, sonner (toasts), socket.io-client, luxon. ESLint. Tests: Vitest + React Testing Library.
 Logging: Morgan (`dev` in development, `combined` in production) plus a tiny `utils/logger.js` wrapper over console with levels. No Winston.
@@ -24,8 +26,8 @@ Not allowed: Prisma, SQL databases, other state libraries, express-mongo-sanitiz
 ## 2. Repository layout
 
 ```
-/client   src/{app,components/{ui,layout,common},features/{auth,attendance,overtime,review,reports,users,notifications,settings,dashboard},hooks,lib,pages,routes,types}
-/server   src/{config,models,routes,controllers,services,middleware,validators,utils,jobs,realtime,scripts,tests}  + app.js, server.js
+/client   src/{app,components/{ui,layout,common},features/{auth,attendance,overtime,review,reports,users,notifications,settings,dashboard,invitations},hooks,lib,pages,routes,types}
+/server   src/{config,models,routes,controllers,services,services/email,middleware,validators,utils,jobs,realtime,scripts,tests}  + app.js, server.js
 README.md  .gitignore  CLAUDE.md  PHASES.md
 ```
 `app.js` builds the Express app (exported for tests); `server.js` connects DB, starts HTTP + Socket.IO + cron.
@@ -53,9 +55,53 @@ Admin user management (`PATCH /api/users/:id`, admin only, strict schema `{name?
 - `managerId` must reference an existing active manager, must not equal the user's own id; only valid for role `employee`.
 - Deactivation takes effect immediately: auth middleware loads the user from DB on every request and rejects inactive users.
 
+Account lifecycle and onboarding:
+- `accountStatus` enum `invited | active | suspended | deactivated` is the source of truth; `isActive === (accountStatus === 'active')` and the two are synchronised in exactly one place (model pre-save hook). Only `active` users can authenticate and count as workforce in dashboards, team sizes, `notYetPunchedIn`, missed-punch alerts and review scope computations.
+- `invited` users have no password. Login for them behaves like an unknown account: generic `401 INVALID_CREDENTIALS` with the dummy bcrypt compare (differs from original spec: current code returns `403 ACCOUNT_NOT_ACTIVATED`; [TARGET] is generic `401 INVALID_CREDENTIALS` with dummy compare). Inactive/suspended/deactivated accounts keep `403 ACCOUNT_INACTIVE` (or `403 ACCOUNT_SUSPENDED`). An `invited` employee may already have a `managerId`.
+- Account lifecycle state transitions allowed by the system:
+  | From | To | Mechanism | Guard / Notes |
+  |---|---|---|---|
+  | `invited` | `active` | `POST /auth/accept-invitation` | Valid, unexpired, unrevoked token; employee establishes password |
+  | `invited` | `active` | `PATCH /users/:id` | Admin direct edit |
+  | `active` | `suspended` | `PATCH /users/:id` | Admin only; blocks login/API; cannot self-suspend; cannot suspend last admin; cannot suspend manager with team members (`409 HAS_TEAM_MEMBERS`) or open shift (`409 OPEN_SHIFT`) |
+  | `suspended` | `active` | `PATCH /users/:id` | Admin only; restores login/API; logs `ACCOUNT_REACTIVATED` |
+  | `active` / `suspended` | `deactivated` | `PATCH /users/:id` | Admin only; permanent deactivation; same guards as suspend (last admin, team members, open shift); logs `ACCOUNT_DEACTIVATED` |
+  | `deactivated` | `active` | `PATCH /users/:id` | Admin only; reactivates account; logs `ACCOUNT_REACTIVATED` |
+  | `deactivated` | `suspended` | `PATCH /users/:id` | Admin only; logs `ACCOUNT_SUSPENDED` |
+- Public signup is controlled by `ALLOW_PUBLIC_REGISTRATION` (default `true` [TARGET]; differs from original spec: code currently defaults to `false`). When true it creates an `employee` with `accountStatus: 'active'`. When false, `POST /auth/signup` returns `403 SIGNUP_DISABLED` (differs from original spec: code currently returns `403 REGISTRATION_DISABLED`) and the Signup page says registration is invitation-only. Signup with an email that already belongs to ANY user (including `invited`, `suspended`, `deactivated`) returns the same `409` duplicate response as an existing active user; signup must never claim, activate or overwrite an invited stub account. [TARGET if not already so]
+- Invitations can only grant `employee` or `manager`. Admin accounts are created only by `seed:admin`. Invited email and role are immutable at acceptance.
+- The "Admin user management" `PATCH /users/:id` rules stay; an `isActive` change maps onto `accountStatus` as implemented (`isActive: true` → `active`, `isActive: false` → `deactivated`), and lifecycle actions (suspend, reactivate, deactivate) use the same guards (last admin, HAS_TEAM_MEMBERS, OPEN_SHIFT, no self-modification).
+
 ## 4. Data models
 
-`User`: name (2–80), email (lowercase, trimmed, unique index), passwordHash (`select: false`), role (enum, default employee), managerId (ref User, default null), isActive (default true), timestamps. `toJSON` strips passwordHash and `__v`.
+`User`: name (2–80), email (lowercase, trimmed, unique index), passwordHash (`select: false`), role (enum, default employee), employeeId (string, unique sparse index), department (string), designation (string), dateOfJoining (date or null), managerId (ref User, default null), accountStatus (enum: invited|active|suspended|deactivated, default active/invited), isActive (default true), timestamps. `passwordHash` is required only when `accountStatus === 'active'`. `toJSON` strips passwordHash and `__v`.
+
+`Invitation`:
+```
+userId                  ObjectId ref User (indexed)
+email                   String (lowercase, trimmed, indexed)
+role                    enum: employee | manager
+invitedBy               ObjectId ref User
+tokenHash               String (SHA-256 hash of a 32-byte random hex token, unique index)
+status                  enum: pending | accepted | expired | revoked (default pending, indexed)
+expiresAt               Date (indexed)
+acceptedAt              Date | null
+revokedAt               Date | null
+lastSentAt              Date
+resendCount             Number (default 0)
+emailDeliveryStatus     enum: pending | accepted | failed | dev_link [TARGET: accepted = Resend accepted request, dev_link = dev mode; differs from original spec: code currently uses pending | sent | failed]
+emailMode               String [TARGET]
+emailProviderMessageId  String | null
+emailLastError          { code, message, at, outcomeUnknown } [TARGET]
+emailAttempt            Number [TARGET]
+sendingAt               Date | null [TARGET]
+metadata                { name, employeeId, department, designation, managerId } [TARGET; differs from original spec: code currently has name, employeeId, department, designation as top-level fields]
+timestamps
+```
+Indexes: unique `{tokenHash: 1}`; `{email: 1, status: 1}`; `{status: 1, expiresAt: 1}`; `{expiresAt: 1}`; `{status: 1, createdAt: -1}`.
+
+`AuditLog`: actorId (ObjectId ref User), actorEmail (string), actorRole (string), action (enum AUDIT_ACTIONS), targetUserId (ObjectId ref User), targetUserEmail (string), invitationId (ObjectId ref Invitation), metadata (Mixed), ipAddress (string), userAgent (string), timestamps. Index `{createdAt: -1}`.
+Event types: `INVITATION_CREATED, INVITATION_EMAIL_SENT, INVITATION_EMAIL_FAILED, INVITATION_RESENT, INVITATION_REVOKED, INVITATION_ACCEPTED, ACCOUNT_SUSPENDED, ACCOUNT_REACTIVATED, ACCOUNT_DEACTIVATED, ROLE_CHANGED, MANAGER_CHANGED`. Audit entries never contain passwords, raw tokens or token-bearing URLs.
 
 `Attendance`:
 ```
@@ -113,10 +159,12 @@ Types: `overtime_requested`, `overtime_approved`, `overtime_rejected`, `attendan
 
 - JWT in HttpOnly cookie `token`: `SameSite=Lax`, `Secure` when `NODE_ENV=production`, path `/`, 12 h expiry, payload `{sub, purpose:'session'}`. No refresh tokens; on expiry the API returns `401 TOKEN_EXPIRED` and the client redirects to login.
 - Frontend uses a same-origin `/api` path: Vite dev proxy locally; Vercel `rewrites` in production proxy `/api/*` to the Render backend. So cookies are first-party; no cross-site cookies.
-- CSRF defence: SameSite=Lax + `middleware/originCheck.js`: for non-GET/HEAD/OPTIONS requests, if an `Origin` header is present it must equal `CLIENT_ORIGIN`, else `403 BAD_ORIGIN`.
+- CSRF defence: SameSite=Lax + `middleware/originCheck.js`: for non-GET/HEAD/OPTIONS requests, if an `Origin` header is present it must equal `CLIENT_ORIGIN`; additionally, outside production, `http://localhost:5173` and `http://127.0.0.1:5173` are accepted, else `403 BAD_ORIGIN`.
 - `trust proxy` = 1 in production (Render).
 - Password policy: 8–72 chars, at least one letter and one number. Login returns the same generic `401 INVALID_CREDENTIALS` for unknown email and wrong password; do a dummy bcrypt compare for unknown email.
-- Rate limits: login 10 / 15 min per IP+email; signup 5 / hour per IP; punch endpoints 30 / 15 min per user; global 300 / 15 min per IP. JSON body limit 100 kb.
+- Invitation tokens: 32 random bytes (hex), only the SHA-256 hash stored, one-time use, expiry and revocation enforced server side. The raw token appears only in the emailed link and, in development mode only, in `devInvitationLink` of the create/resend response. Never in logs, audit entries, errors, list/detail responses or test output.
+- Logger redacts fields named `token`, `authorization`, `apiKey`, `password`. [TARGET]
+- Rate limits: login 10 / 15 min per IP+email; signup 5 / hour per IP; punch endpoints 30 / 15 min per user; admin invitation create/resend/revoke 30 / 15 min per admin [TARGET]; `POST /auth/invitations/validate` and `POST /auth/accept-invitation` 20 / 15 min per IP [TARGET]; global 300 / 15 min per IP. JSON body limit 100 kb.
 - Helmet defaults; CORS restricted to `CLIENT_ORIGIN` with credentials (needed for dev without proxy and for Socket.IO).
 - All request bodies/queries/params validated with Zod `.strict()` schemas in `validators/`; unknown keys rejected. `ObjectId` params validated.
 - Centralised error handler; never leak stack traces, hashes, or Cloudinary details in responses.
@@ -125,7 +173,7 @@ Types: `overtime_requested`, `overtime_approved`, `overtime_rejected`, `attendan
 
 Success: `{ "success": true, "data": ..., "meta"?: { page, limit, total, totalPages } }`.
 Error: `{ "success": false, "error": { "code": "STRING_CODE", "message": "...", "details"?: [...] } }`.
-Status codes: 200, 201, 400 `VALIDATION_ERROR`, 401 `UNAUTHENTICATED|TOKEN_EXPIRED|INVALID_CREDENTIALS`, 403 `FORBIDDEN|ADMIN_NOT_ELIGIBLE|ACCOUNT_INACTIVE|BAD_ORIGIN`, 404 `NOT_FOUND`, 409 conflict codes (`ALREADY_PUNCHED_IN|NO_OPEN_ATTENDANCE|HAS_TEAM_MEMBERS|OPEN_SHIFT|INVALID_TRANSITION`), 413 `FILE_TOO_LARGE`, 415 `UNSUPPORTED_MEDIA_TYPE`, 422 location rules, 429 `RATE_LIMITED`, 500 `INTERNAL_ERROR`, 502 `STORAGE_UNAVAILABLE`.
+Status codes: 200, 201, 400 `VALIDATION_ERROR`, 401 `UNAUTHENTICATED|TOKEN_EXPIRED|INVALID_CREDENTIALS`, 403 `FORBIDDEN|ADMIN_NOT_ELIGIBLE|ACCOUNT_INACTIVE|ACCOUNT_SUSPENDED|BAD_ORIGIN|SIGNUP_DISABLED|REGISTRATION_DISABLED`, 404 `NOT_FOUND`, 409 conflict codes (`ALREADY_PUNCHED_IN|NO_OPEN_ATTENDANCE|HAS_TEAM_MEMBERS|OPEN_SHIFT|INVALID_TRANSITION|INVITATION_ALREADY_PENDING|INVITATION_ALREADY_ACCEPTED|ACCOUNT_ALREADY_ACTIVE|EMPLOYEE_ID_EXISTS|RESEND_LIMIT_REACHED|SEND_IN_PROGRESS`), 410 `INVITATION_EXPIRED|INVITATION_REVOKED`, 413 `FILE_TOO_LARGE`, 415 `UNSUPPORTED_MEDIA_TYPE`, 422 location rules, 429 `RATE_LIMITED|RESEND_COOLDOWN` (details.retryAfterSeconds), 500 `INTERNAL_ERROR|INVITATION_STATE_UPDATE_FAILED` [TARGET], 502 `STORAGE_UNAVAILABLE|EMAIL_NOT_CONFIGURED|EMAIL_INVALID_API_KEY|EMAIL_SANDBOX_RECIPIENT_RESTRICTED|EMAIL_DOMAIN_NOT_VERIFIED|EMAIL_RATE_LIMITED|EMAIL_QUOTA_EXCEEDED|EMAIL_INVALID_RECIPIENT_OR_PARAMS|EMAIL_TIMEOUT|EMAIL_PROVIDER_ERROR` [TARGET].
 Pagination on every list endpoint: `page` (default 1), `limit` (default 20, max 100). Dates are `YYYY-MM-DD` business dates.
 
 Endpoints (all under `/api`; `A`=any authenticated, workforce `W`=E,M, role letters E/M/Ad):
@@ -134,12 +182,21 @@ GET  /health                                     public
 POST /auth/signup | /auth/login | /auth/logout   public (logout: A)
 GET  /auth/me                                    A
 GET  /auth/socket-token                          A   → 60 s JWT {sub, purpose:'socket'}
+POST /auth/invitations/validate                 public {token} → safe metadata {valid, email, name, role, department, designation, expiresAt}
+POST /auth/accept-invitation                    public {token, password, confirmPassword} → activates account
 
 GET   /users                  Ad  filters: role, search, isActive, managerId, page, limit
 GET   /users/team             M   own team members
 GET   /users/managers         Ad  active managers (for assignment dropdown)
 GET   /users/:id              Ad
 PATCH /users/:id              Ad
+
+POST  /admin/invitations                         Ad  create invitation & provision stub {name, email, role, employeeId?, department?, designation?, managerId?}
+GET   /admin/invitations                         Ad  filters: status, role, search, page, limit
+GET   /admin/invitations/:id                     Ad  view invitation details
+POST  /admin/invitations/:id/resend              Ad  rotates token, resets expiry, resends email
+POST  /admin/invitations/:id/revoke              Ad  revokes pending invitation
+GET   /admin/invitations/email-status            Ad  [TARGET] returns {mode, provider, configured, senderAddress, senderDomain, sandboxSender} (never any secret)
 
 GET  /attendance/today                           W   own record for today or null (admin → 403 ADMIN_NOT_ELIGIBLE)
 GET  /attendance/me                              W   from, to, workingStatus, page, limit (admin → 403 ADMIN_NOT_ELIGIBLE)
@@ -161,6 +218,7 @@ GET/PUT /settings/geofence                       Ad only
 GET   /notifications  (unreadOnly, page, limit) | GET /notifications/unread-count | PATCH /notifications/:id/read | PATCH /notifications/read-all    A
 ```
 `GET /attendance` and `/attendance/team` scoping is done in one shared `buildScopeFilter(user)` service helper used by attendance, overtime, reports, export and dashboard so scoping can never diverge.
+Create invitation returns 201 with `{ invitation, email: {mode, status, providerMessageId?, error?}, devInvitationLink? }` where `devInvitationLink` exists only in development mode [TARGET; differs from original spec: code currently returns `{ invitation, user, delivery, devInvitationUrl }`]. Resend returns 200 with the same shape, or 502 with the standard error envelope when the provider fails.
 
 Reports row fields: employeeName, employeeEmail, workDate, punchInAt, punchOutAt, punchInLocation, punchOutLocation, workedMinutes, workedHours (2 dp), workingStatus, verificationStatus, overtimeStatus, hasPunchInSelfie, hasPunchOutSelfie, attendanceId (client builds the selfie URL from it). Response also includes `summary` counts by workingStatus, verificationStatus, overtimeStatus.
 Export: Excel and PDF contain the same rows as text columns (location as "lat, lng"); selfies are NOT embedded. Reuse the report service; stream the file.
@@ -179,6 +237,7 @@ Notification triggers (created in `notification.service.js`, which also emits ov
 - Missed punch-in alert → ACTIVE employee/manager, at `MISSED_PUNCH_IN_ALERT_TIME` (default `11:00`) on working days when no record exists for today.
 - Missed punch-out alert → ACTIVE employee/manager, at `MISSED_PUNCH_OUT_ALERT_TIME` (default `20:00`) when today's record is still `in_progress`.
 - Auto-close → workforce user + their manager (`attendance_auto_closed`), at `AUTO_CLOSE_TIME` (default `00:10`) for any `in_progress` record with `workDate` < today. Closes open records of any workforce user (including inactive ones), but sends no notification to inactive users.
+- Active workforce scope: missed-punch alerts, auto-close notifications, dashboard `teamSize`/`notYetPunchedIn`, and review scope consider only users with `accountStatus === 'active'` (auto-close still closes open records of any workforce user).
 Jobs in `server/src/jobs/` using node-cron with `timezone: BUSINESS_TIMEZONE`, enabled when `ENABLE_CRON=true`. Alerts are idempotent: never create the same alert type for the same user and workDate twice (check before insert). Single-instance assumption is documented. Lazy auto-close at punch-in covers server sleep on free hosting.
 
 Socket.IO (`server/src/realtime/`): client connects directly to `VITE_SOCKET_URL` (Vercel cannot proxy WebSockets) with `auth: { token: <socket-token> }` fetched from `/auth/socket-token`; server verifies `purpose==='socket'`, loads the user, rejects inactive. CORS = `CLIENT_ORIGIN`, credentials true. Rooms: `user:<id>`, plus `role:admin` for admins. Events emitted after the DB write succeeded:
@@ -188,11 +247,13 @@ Client: on `attendance:updated` call `api.util.invalidateTags` for attendance/re
 
 ## 11. Frontend
 
-Routes: `/login`, `/signup`, `/` (redirect by role), `/employee`, `/employee/history`, `/manager`, `/manager/review`, `/manager/overtime`, `/manager/reports`, `/admin`, `/admin/users`, `/admin/attendance`, `/admin/review`, `/admin/overtime`, `/admin/reports`, `/admin/settings`, `/notifications`, `*` (404).
+Routes: `/login`, `/signup`, `/accept-invitation` (public; sets `meta referrer no-referrer`; states: loading, valid, expired, revoked, already accepted, invalid, success), `/` (redirect by role), `/employee`, `/employee/history`, `/manager`, `/manager/review`, `/manager/overtime`, `/manager/reports`, `/admin`, `/admin/users`, `/admin/attendance`, `/admin/review`, `/admin/overtime`, `/admin/reports`, `/admin/settings`, `/notifications`, `*` (404).
 Workforce portal routes `/employee*` allow roles: `employee`, `manager`. Admin is never a workforce user: admin is redirected to `/admin` and never sees punch UI, "My attendance", employee history, personal summary, or shift timer. Manager sidebar has both team pages and "My attendance".
 ProtectedRoute checks `allowedRoles`; session is restored from `/auth/me` on load (never from stored role). If `/auth/me` returns 401 on an unauthenticated visit to `/login`, no toast is shown.
-RTK Query: one `api` slice with `injectEndpoints` per feature; tag types `Me, User, Attendance, Today, Overtime, Report, Dashboard, Notification, Settings`; invalidate precisely after mutations. Redux slices only for UI state that must be global (auth session flag, theme). Do not copy server data into slices.
+RTK Query: one `api` slice with `injectEndpoints` per feature; tag types `Me, User, Attendance, Today, Overtime, Report, Dashboard, Notification, Settings, Invitation`; invalidate precisely after mutations. Redux slices only for UI state that must be global (auth session flag, theme). Do not copy server data into slices.
 UI: Tailwind + shadcn/ui, consistent tokens as CSS variables, dark mode via `class` strategy: default follows `prefers-color-scheme`, user toggle persisted in `localStorage` (`theme`), applied before first paint to avoid flash. Layout: sidebar (desktop), top bar + sheet menu (mobile), notification bell with unread badge. Tables: responsive (horizontal scroll or card layout on mobile), loading skeletons, empty states, error states with retry. Confirm dialogs for reject/invalid. Status badges: working (`in_progress`, `completed`, `incomplete`, `missed`), verification, overtime, each with distinct color AND text (never color alone). WCAG basics: labels, focus rings, `aria-live` for toasts and camera errors, keyboard-operable dialogs. Dashboard numbers come only from API.
+Admin Users page features tabs for "Staff Directory" and "Invitations & Onboarding", with an "Invite User" modal dialog.
+[TARGET] Email-status UI rules: each `emailDeliveryStatus` renders a distinct, mutually exclusive state; the "Development Mode link" block renders only when `devInvitationLink` is present AND mode is `development`; a persistent Development Mode banner and a sandbox-sender banner are driven by `/admin/invitations/email-status`; the Resend button is disabled while in flight and during the cooldown and is never triggered from effects or renders.
 Selfie review: dialog with punch-in and punch-out images side by side (via the selfie endpoint), coordinates with "Open in maps" link (`https://www.google.com/maps?q=lat,lng`), geofence distance, times, worked minutes, history of past decisions, remarks textarea, Valid / Invalid buttons.
 
 ## 12. Testing (minimum required, all must pass)
@@ -209,16 +270,37 @@ Verification/overtime: reviewer scope; no self-review; invalid requires remarks;
 Reports/export: scoping per role; required fields; date filter and range; xlsx/pdf export respects scope and returns correct content type; zero rows returns valid empty file; > 5000 rows capped with header notice.
 Notifications: created for each trigger, recipients correct, alerts idempotent, unread count, mark read only own; jobs exclude admins and alerts sent only to active users.
 Socket: authenticated connect, rejected with bad/expired/wrong-purpose token, event delivered to correct rooms only.
+Invitations:
+- Provider mocked everywhere (no test sends real email);
+- Development mode never constructs the Resend client [TARGET];
+- SDK `{data:null,error}` (not thrown) maps to failed [TARGET];
+- Thrown network error and timeout map to failed (timeout sets `outcomeUnknown`) [TARGET];
+- Resend success rotates the token, resend failure leaves the old token valid [TARGET];
+- Concurrent double resend makes exactly one provider call [TARGET];
+- Cooldown and max-resend limits enforced [TARGET];
+- No raw token or API key in any response, log or audit entry;
+- Accepted, revoked, and expired tokens cannot be reused;
+- Stored token is SHA-256 hashed and raw token is high entropy (32 random bytes);
+- Invited user cannot log in before activation (returns generic 401 [TARGET; differs from original spec: code currently returns 403]);
+- Public signup cannot claim or overwrite an invited email address;
+- Admin-only authorization on all invitation management routes;
+- Email template properly escapes hostile recipient/org names [TARGET];
+- Env validation rejects invalid email and invitation configurations.
 Frontend: ProtectedRoute redirects; status badge mapping; camera component stops tracks on unmount (mocked `getUserMedia`); login form validation.
 
 ## 13. Environment variables
 
-`server/.env.example`: `NODE_ENV, PORT, MONGODB_URI, JWT_SECRET, JWT_EXPIRES_IN=12h, CLIENT_ORIGIN, BUSINESS_TIMEZONE=Asia/Kolkata, STANDARD_SHIFT_MINUTES=480, WORKING_DAYS=1,2,3,4,5, CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET, CLOUDINARY_FOLDER=attendance, GEOFENCE_ENABLED=false, GEOFENCE_OFFICE_LAT, GEOFENCE_OFFICE_LNG, GEOFENCE_RADIUS_METERS=200, GEOFENCE_MAX_ACCURACY_METERS=100, ADMIN_NAME, ADMIN_EMAIL, ADMIN_PASSWORD, ENABLE_CRON=true, MISSED_PUNCH_IN_ALERT_TIME=11:00, MISSED_PUNCH_OUT_ALERT_TIME=20:00, AUTO_CLOSE_TIME=00:10`.
+`server/.env.example`: `NODE_ENV, PORT, MONGODB_URI, JWT_SECRET, JWT_EXPIRES_IN=12h, CLIENT_ORIGIN, BUSINESS_TIMEZONE=Asia/Kolkata, STANDARD_SHIFT_MINUTES=480, WORKING_DAYS=1,2,3,4,5, CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET, CLOUDINARY_FOLDER=attendance, GEOFENCE_ENABLED=false, GEOFENCE_OFFICE_LAT, GEOFENCE_OFFICE_LNG, GEOFENCE_RADIUS_METERS=200, GEOFENCE_MAX_ACCURACY_METERS=100, ADMIN_NAME, ADMIN_EMAIL, ADMIN_PASSWORD, ENABLE_CRON=true, MISSED_PUNCH_IN_ALERT_TIME=11:00, MISSED_PUNCH_OUT_ALERT_TIME=20:00, AUTO_CLOSE_TIME=00:10, EMAIL_PROVIDER=resend, EMAIL_MODE=development|resend, RESEND_API_KEY, EMAIL_FROM, EMAIL_REPLY_TO, APP_BASE_URL, INVITATION_EXPIRY_HOURS=72, INVITATION_RESEND_COOLDOWN_SECONDS=60, INVITATION_MAX_RESENDS=10, EMAIL_SEND_TIMEOUT_MS=10000, ALLOW_PUBLIC_REGISTRATION=true`.
+Validation rules:
+- `EMAIL_MODE` is independent of `NODE_ENV`.
+- `resend` mode requires a non-placeholder key starting with `re_` and a valid `EMAIL_FROM`.
+- Production requires `resend` mode and an https, non-localhost `APP_BASE_URL`.
+- `APP_BASE_URL` is normalised (no trailing slash, no path) and links are built with `new URL`.
 `client/.env.example`: `VITE_API_BASE_URL=/api`, `VITE_SOCKET_URL` (backend origin; `http://localhost:5000` in dev). Validate server env with Zod at startup and fail fast with a clear message.
 
 ## 14. Scripts
 
-Server: `dev` (node --watch), `start`, `test`, `lint`, `seed:admin`, `seed:demo` (creates 1 admin without attendance, 2 managers, 6 employees, 14 days of varied attendance; password from `DEMO_PASSWORD`), `db:purge-admin-attendance` (`server/src/scripts/purge-admin-attendance.js`).
+Server: `dev` (node --watch), `start`, `test`, `lint`, `seed:admin`, `seed:demo` (creates 1 admin without attendance, 2 managers, 6 employees, 14 days of varied attendance; password from `DEMO_PASSWORD`), `db:purge-admin-attendance` (`server/src/scripts/purge-admin-attendance.js`), `email:smoke` [TARGET: needs `--to <address> --confirm`; sends one plain test email with no token; prints provider id or mapped error only], `db:migrate-invitation-email-status` [TARGET: dry run by default, `--confirm` writes: `sent` with provider id → `accepted`, `sent` without → `dev_link`]. Note: `test-resend.js` has been removed.
 Client: `dev`, `build`, `lint`, `test`, `preview`.
 
 ## 15. Deployment
@@ -244,4 +326,10 @@ Prerequisites, install, env vars table, MongoDB + Cloudinary setup, running loca
 10. Lazy auto-close covers server sleep;
 11. Single-instance cron;
 12. Same-origin proxy cookies;
-13. Selfies proxied through authenticated API.
+13. Selfies proxied through authenticated API;
+14. Invitation onboarding is an additional flow beside public signup (assessment requires signup);
+15. With the Resend sandbox sender `onboarding@resend.dev` only the Resend account owner's email can receive mail, any other recipient needs a verified domain;
+16. `accepted` means Resend accepted the request, not inbox delivery;
+17. Delivery/bounce webhooks are not implemented (need a public URL and signature verification);
+18. Development mode generates a one-time link and sends nothing;
+19. Invitation links use APP_BASE_URL and localhost links only work on the same computer.
