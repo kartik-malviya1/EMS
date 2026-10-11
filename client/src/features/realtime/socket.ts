@@ -47,8 +47,8 @@ export async function fetchSocketToken(): Promise<string | null> {
 }
 
 function getSocketUrl(): string {
-  if (import.meta.env.VITE_SOCKET_URL) {
-    return import.meta.env.VITE_SOCKET_URL;
+  if (import.meta.env.SOCKET_URL) {
+    return import.meta.env.SOCKET_URL;
   }
   if (import.meta.env.API_BASE_URL) {
     try {
