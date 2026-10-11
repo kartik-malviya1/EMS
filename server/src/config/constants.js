@@ -65,6 +65,7 @@ export const NOTIFICATION_TYPES = {
   LEAVE_REQUESTED: 'leave_requested',
   LEAVE_APPROVED: 'leave_approved',
   LEAVE_REJECTED: 'leave_rejected',
+  INVITATION_ACCEPTED: 'invitation_accepted',
 };
 
 export const NOTIFICATION_TYPE_LIST = Object.values(NOTIFICATION_TYPES);
