@@ -35,53 +35,47 @@ Controllers are thin (parse validated input, call service, shape response). Busi
 
 ## 3. Roles and rules
 
-Roles: `employee`, `manager`, `admin`. Public signup ALWAYS creates `employee` (role in payload is rejected by strict Zod schema).
+Roles: `employee`, `manager`, `admin`. Initial admin provisioned by `seed:admin` (idempotent, env-driven; never touch existing admin).
+- Admin accounts can NEVER be created or granted through signup, invitation acceptance, invitations, or `PATCH /users`. Roles may change only between `employee` and `manager` (employee→manager clears managerId; manager→employee requires no team members, `409 HAS_TEAM_MEMBERS` otherwise). Admin role cannot be granted or removed via the API.
+- Public signup ALWAYS creates `employee` (role in payload rejected by strict Zod schema).
 - Workforce roles: `employee`, `manager`. Admin is an administrative-only role: no punch in/out, no personal attendance records, no overtime requests, no shift alerts.
 - Admin calls to workforce endpoints (`POST /attendance/punch-in`, `POST /attendance/punch-out`, `GET /attendance/today`, `GET /attendance/me`, `POST /attendance/:id/overtime`) return `403 ADMIN_NOT_ELIGIBLE` (checked by shared `requireWorkforce` middleware before upload parsing, with service defence-in-depth).
 - Employee has `managerId` → an active `manager` (or null if unassigned). Manager and admin have `managerId = null` (enforced).
 - Reviewer matrix: employee records → that employee's manager OR any admin. Manager records → admins only. There are no admin attendance records, so peer-admin review does not exist.
-- Nobody reviews (verification or overtime) their own record, regardless of role. Manager self-review is blocked (`403 FORBIDDEN`).
+- Nobody reviews (verification or overtime) or resolves (missing punch-out) their own record, regardless of role. Manager self-review is blocked (`403 FORBIDDEN`).
 - Manager scope = users with `managerId === manager._id` and `isActive` not required (inactive team members' history stays visible). Out-of-scope access returns `404 NOT_FOUND` (do not reveal existence) for single-resource routes and is silently excluded from lists.
-- Employee with no assigned manager: their overtime requests and review queue go to admins only; notification fallback = all active admins.
+- Employee with no assigned manager: their overtime requests, missing punch-out resolutions, and review queue go to admins only; notification fallback = all active admins.
 - Backend enforces everything; frontend hiding is only UX.
 - Never trust client-supplied: role, employeeId, reviewer, timestamps, workDate, duration, statuses.
 
 Admin user management (`PATCH /api/users/:id`, admin only, strict schema `{name?, role?, managerId?, isActive?}`):
 - Admin cannot change own role or deactivate self.
 - Cannot demote/deactivate the last active admin.
-- Setting role to `manager`/`admin` forces `managerId = null`.
-- A manager with active team members cannot be demoted or deactivated → `409 HAS_TEAM_MEMBERS` until members are reassigned.
-- Promoting someone to admin (`role === 'admin'`) or deactivating them (`isActive === false`) while they have an `in_progress` attendance record → `409 OPEN_SHIFT`. Existing history remains in org-wide reports.
+- Setting role to `manager` forces `managerId = null`. Setting role to `admin` is rejected with `400 VALIDATION_ERROR` (admin role cannot be granted via API).
+- A manager with active or invited team members cannot be demoted or deactivated → `409 HAS_TEAM_MEMBERS` until members are reassigned.
+- Deactivating someone (`isActive === false`) while they have an `in_progress` attendance record → `409 OPEN_SHIFT`. Existing history remains in org-wide reports.
 - `managerId` must reference an existing active manager, must not equal the user's own id; only valid for role `employee`.
 - Deactivation takes effect immediately: auth middleware loads the user from DB on every request and rejects inactive users.
 
 Account lifecycle and onboarding:
 - `accountStatus` enum `invited | active | suspended | deactivated` is the source of truth; `isActive === (accountStatus === 'active')` and the two are synchronised in exactly one place (model pre-save hook). Only `active` users can authenticate and count as workforce in dashboards, team sizes, `notYetPunchedIn`, missed-punch alerts and review scope computations.
-- `invited` users have no password. Login for them behaves like an unknown account: generic `401 INVALID_CREDENTIALS` with the dummy bcrypt compare (differs from original spec: current code returns `403 ACCOUNT_NOT_ACTIVATED`; [TARGET] is generic `401 INVALID_CREDENTIALS` with dummy compare). Inactive/suspended/deactivated accounts keep `403 ACCOUNT_INACTIVE` (or `403 ACCOUNT_SUSPENDED`). An `invited` employee may already have a `managerId`.
-- Account lifecycle state transitions allowed by the system:
-  | From | To | Mechanism | Guard / Notes |
-  |---|---|---|---|
-  | `invited` | `active` | `POST /auth/accept-invitation` | Valid, unexpired, unrevoked token; employee establishes password |
-  | `invited` | `active` | `PATCH /users/:id` | Admin direct edit |
-  | `active` | `suspended` | `PATCH /users/:id` | Admin only; blocks login/API; cannot self-suspend; cannot suspend last admin; cannot suspend manager with team members (`409 HAS_TEAM_MEMBERS`) or open shift (`409 OPEN_SHIFT`) |
-  | `suspended` | `active` | `PATCH /users/:id` | Admin only; restores login/API; logs `ACCOUNT_REACTIVATED` |
-  | `active` / `suspended` | `deactivated` | `PATCH /users/:id` | Admin only; permanent deactivation; same guards as suspend (last admin, team members, open shift); logs `ACCOUNT_DEACTIVATED` |
-  | `deactivated` | `active` | `PATCH /users/:id` | Admin only; reactivates account; logs `ACCOUNT_REACTIVATED` |
-  | `deactivated` | `suspended` | `PATCH /users/:id` | Admin only; logs `ACCOUNT_SUSPENDED` |
-- Public signup is controlled by `ALLOW_PUBLIC_REGISTRATION` (default `true`). When true it creates an `employee` with `accountStatus: 'active'`. When false, `POST /auth/signup` returns `403 SIGNUP_DISABLED` and the Signup page says registration is invitation-only. Signup with an email that already belongs to ANY user (including `invited`, `suspended`, `deactivated`) returns the same `409` duplicate response as an existing active user; signup must never claim, activate or overwrite an invited stub account.
-- Invitations can only grant `employee` or `manager`. Admin accounts are created only by `seed:admin`. Invited email and role are immutable at acceptance.
-- The "Admin user management" `PATCH /users/:id` rules stay; an `isActive` change maps onto `accountStatus` as implemented (`isActive: true` → `active`, `isActive: false` → `deactivated`), and lifecycle actions (suspend, reactivate, deactivate) use the same guards (last admin, HAS_TEAM_MEMBERS, OPEN_SHIFT, no self-modification).
+- `invited` users have no password. Login for them behaves like an unknown account: generic `401 INVALID_CREDENTIALS` with the dummy bcrypt compare. Inactive/suspended/deactivated accounts return `403 ACCOUNT_INACTIVE` (or `403 ACCOUNT_SUSPENDED`).
+- Invitations can only grant `employee` or `manager`. Admin accounts are created only by `seed:admin`.
+- Manager can invite EMPLOYEES only into their own team (`POST /api/team/invitations`; auto-assigned `managerId = authenticated manager._id`, `invitedByRole: 'manager'`).
+- Acceptance NEVER sets or changes managerId, role, email or invitedBy; it only sets password hash, `accountStatus: 'active'`, `isActive: true`, marks invitation accepted, clears token. The User document is the source of truth for managerId (admin reassignments between invite and acceptance are preserved).
+- Public signup is controlled by `ALLOW_PUBLIC_REGISTRATION` (default `true`). When true it creates an `employee` with `accountStatus: 'active'`. When false, `POST /auth/signup` returns `403 SIGNUP_DISABLED`. Signup with an email that belongs to ANY user returns `409` duplicate response; signup never claims or overwrites an invited stub account.
 
 ## 4. Data models
 
-`User`: name (2–80), email (lowercase, trimmed, unique index), passwordHash (`select: false`), role (enum, default employee), employeeId (string, unique sparse index), department (string), designation (string), dateOfJoining (date or null), managerId (ref User, default null), accountStatus (enum: invited|active|suspended|deactivated, default active/invited), isActive (default true), timestamps. `passwordHash` is required only when `accountStatus === 'active'`. `toJSON` strips passwordHash and `__v`.
+`User`: name (2–80), email (lowercase, trimmed, unique index), passwordHash (`select: false`), role (enum: employee|manager|admin, default employee), employeeId (string, unique sparse index), department (string), designation (string), dateOfJoining (date or null), managerId (ref User, default null), accountStatus (enum: invited|active|suspended|deactivated, default active/invited), isActive (default true), timestamps. `passwordHash` is required only when `accountStatus === 'active'`. `toJSON` strips passwordHash and `__v`.
 
 `Invitation`:
 ```
 userId                  ObjectId ref User (indexed)
 email                   String (lowercase, trimmed, indexed)
 role                    enum: employee | manager
-invitedBy               ObjectId ref User
+invitedBy               ObjectId ref User (indexed)
+invitedByRole           enum: admin | manager (snapshot of creator's role)
 tokenHash               String (SHA-256 hash of a 32-byte random hex token, unique index)
 status                  enum: pending | accepted | expired | revoked (default pending, indexed)
 expiresAt               Date (indexed)
@@ -102,45 +96,57 @@ timestamps
 Indexes: unique `{tokenHash: 1}`; `{email: 1, status: 1}`; `{status: 1, expiresAt: 1}`; `{expiresAt: 1}`; `{status: 1, createdAt: -1}`.
 
 `AuditLog`: actorId (ObjectId ref User), actorEmail (string), actorRole (string), action (enum AUDIT_ACTIONS), targetUserId (ObjectId ref User), targetUserEmail (string), invitationId (ObjectId ref Invitation), metadata (Mixed), ipAddress (string), userAgent (string), timestamps. Index `{createdAt: -1}`.
-Event types: `INVITATION_CREATED, INVITATION_EMAIL_SENT, INVITATION_EMAIL_FAILED, INVITATION_RESENT, INVITATION_REVOKED, INVITATION_ACCEPTED, INVITATION_LINK_REQUESTED, EMAIL_TEST_SENT, ACCOUNT_SUSPENDED, ACCOUNT_REACTIVATED, ACCOUNT_DEACTIVATED, ROLE_CHANGED, MANAGER_CHANGED`. Audit entries never contain passwords, raw tokens or token-bearing URLs.
+Event types: `INVITATION_CREATED, INVITATION_EMAIL_SENT, INVITATION_EMAIL_FAILED, INVITATION_RESENT, INVITATION_REVOKED, INVITATION_ACCEPTED, INVITATION_LINK_REQUESTED, EMAIL_TEST_SENT, ACCOUNT_SUSPENDED, ACCOUNT_REACTIVATED, ACCOUNT_DEACTIVATED, ROLE_CHANGED, MANAGER_CHANGED, ATTENDANCE_CORRECTED`. Audit entries never contain passwords, raw tokens or token-bearing URLs.
 
 `Attendance`:
 ```
 employeeId  ObjectId ref User (indexed)
 workDate    String 'YYYY-MM-DD' in BUSINESS_TIMEZONE
-punchIn  { at: Date, selfie: { publicId, mimeType, bytes }, location: { latitude, longitude, accuracy, distanceFromOfficeMeters, withinGeofence } }
-punchOut { same shape, null until punch-out }
-workedMinutes Number | null     // integer, floor((out - in)/60000)
+schedule    { shiftStart: String, shiftEnd: String, expectedMinutes: Number, graceMinutes: Number, timezone: String } // Snapshot at creation
+punchIn     { at: Date, selfie: { publicId, mimeType, bytes }, location: { latitude, longitude, accuracy, distanceFromOfficeMeters, withinGeofence } } | null // Optional ONLY when workingStatus === 'missed'
+punchOut    { same shape, null until punch-out }
+workedMinutes Number | null     // integer, floor((out - in)/60000); null for in_progress, missed, and flagged records
 workingStatus enum: in_progress | completed | incomplete | missed
-closedBy      enum: employee | system | null
+closedBy    enum: employee | reviewer | system | null // 'system' only for tick-created missed records
+late        { isLate: Boolean, minutes: Number } | null // set at punch-in; null on missed and legacy records
+exceptions  { missingPunchOut: { flaggedAt: Date | null, resolvedAt: Date | null, resolvedBy: ObjectId | null, reason: String | null } }
+corrections [{ type: 'missing_punch_out', newPunchOutAt: Date, reason: String, resolvedBy: ObjectId, resolvedAt: Date }]
 verification { status: pending|valid|invalid (default pending), reviewedBy, reviewedAt, remarks,
                history: [{ status, reviewedBy, reviewedAt, remarks }] }
-overtime { status: not_requested|pending|approved|rejected (default not_requested), requestedMinutes, reason, requestedAt,
-           reviewedBy, reviewedAt, remarks, history: [{ status, requestedMinutes, reason, requestedAt, reviewedBy, reviewedAt, remarks }] }
+overtime    { status: not_requested|pending|approved|rejected (default not_requested), requestedMinutes, reason, requestedAt,
+              reviewedBy, reviewedAt, remarks, history: [{ status, requestedMinutes, reason, requestedAt, reviewedBy, reviewedAt, remarks }] }
 timestamps
 ```
-Indexes: unique `{employeeId, workDate}`; `{workDate, workingStatus}`; `{employeeId, workDate:-1}`; `{'overtime.status':1, workDate:-1}`; `{'verification.status':1, workDate:-1}`.
-`selfie.publicId` is never returned to clients; selfies are only served through the authorised selfie endpoint.
+Indexes: unique `{employeeId, workDate}`; `{workDate, workingStatus}`; `{employeeId, workDate:-1}`; `{'overtime.status':1, workDate:-1}`; `{'verification.status':1, workDate:-1}`; `{ 'exceptions.missingPunchOut.flaggedAt': 1, workingStatus: 1 }`.
+Serializers add derived `displayStatus`: `missed`, `missing_punch_out` (in_progress with unresolved missingPunchOut.flaggedAt), `in_progress`, `completed`, `incomplete`.
 
-`Notification`: userId, type, title, message, data `{attendanceId?}`, readAt (null), createdAt. Index `{userId, readAt, createdAt:-1}`; TTL index on createdAt = 90 days.
-Types: `overtime_requested`, `overtime_approved`, `overtime_rejected`, `attendance_valid`, `attendance_invalid`, `missed_punch_in`, `missed_punch_out`, `attendance_auto_closed`.
+`Notification`: userId, type, title, message, data `{attendanceId?, workDate?}`, readAt (null), createdAt. Index `{userId, readAt, createdAt:-1}`; TTL index on createdAt = 90 days.
+Types: `overtime_requested`, `overtime_approved`, `overtime_rejected`, `attendance_valid`, `attendance_invalid`, `missed_punch_in`, `missed_shift`, `missing_punch_out`, `invitation_accepted`.
 
-`Settings` (single document, `key: 'geofence'`): `{ enabled, officeLatitude, officeLongitude, radiusMeters, maxAccuracyMeters }`. On first boot, seeded from env (`GEOFENCE_*`); afterwards the DB document is the source of truth, editable by admins.
+`Settings` (in existing Settings collection):
+- Geofence document (`key: 'geofence'`): `{ enabled, officeLatitude, officeLongitude, radiusMeters, maxAccuracyMeters }`.
+- Attendance Policy document (`key: 'attendancePolicy'`): `{ shiftStart: '09:00', shiftEnd: '17:00', workingDays: [1,2,3,4,5], expectedMinutes: 480, graceMinutes: 10, punchInWindowMinutes: 240, missingPunchOutAfterMinutes: 15, breakDeductionMinutes: 0, effectiveFrom: String, timezone: 'Asia/Kolkata' }`. On first boot seeded from env + defaults; afterwards DB document is the single source of truth, editable by admins (`GET/PUT /api/settings/attendance-policy`, strict Zod, admin only).
 
 ## 5. Business rules (exact)
 
-- Business timezone: `BUSINESS_TIMEZONE` (default `Asia/Kolkata`). `workDate` computed server-side with Luxon from the server clock. All timestamps from the server clock only.
-- Standard shift: `STANDARD_SHIFT_MINUTES` = 480. Working days for missed-punch alerts: `WORKING_DAYS` = ISO weekdays (default `1,2,3,4,5`). Punching on non-working days is allowed.
-- No break deduction. `workedMinutes = floor((punchOut.at - punchIn.at) / 60000)`. Reject if punchOut ≤ punchIn.
-- `>= 480` → `completed`; `< 480` → `incomplete`; open record → `in_progress`; auto-closed → `missed` (workedMinutes 0, `punchOut` null, `closedBy: system`).
-- One record per employee per workDate. Punch-in when today's record exists → `409 ALREADY_PUNCHED_IN`. Punch-in while an older open record exists: first auto-close that record (lazy auto-close), then proceed.
-- Punch-out: atomic `findOneAndUpdate({ employeeId, workingStatus: 'in_progress' }, { $set: ... }, { new: true })`. If none → `409 NO_OPEN_ATTENDANCE`. Duplicate/concurrent calls: the filter on `in_progress` guarantees only one succeeds.
-- Punch-in concurrency: rely on the unique index; map duplicate-key error (11000) to `409 ALREADY_PUNCHED_IN`. No transactions.
-- Missed-punch-out jobs apply to records whose `workDate` is before today in business time.
-- Verification: reviewable when `workingStatus !== 'in_progress'`. Marking `invalid` requires remarks (5–500 chars). Re-review allowed; every decision is appended to `verification.history`. Reviewer scope per section 3.
-- Overtime request eligibility: own record; `workingStatus === 'completed'`; `workedMinutes > 480`; `verification.status !== 'invalid'`; `overtime.status` is `not_requested` or `rejected` (resubmission after rejection allowed; the rejected request is pushed to `overtime.history`); `requestedMinutes` integer, `1 <= n <= workedMinutes - 480`; reason 5–500 chars. Pending or approved → `409 OVERTIME_NOT_REQUESTABLE`.
-- Overtime review: only `pending → approved|rejected`; anything else → `409 INVALID_TRANSITION`. Reviewer scope per section 3. Approving when verification is `invalid` → `409 ATTENDANCE_INVALID`. Remarks optional (max 500), required (5–500) on rejection.
-- Overtime is an application assumption (time beyond 8 hours); document it in README.
+- Business timezone: `BUSINESS_TIMEZONE` (default `Asia/Kolkata`). `workDate` computed server-side with Luxon from the server clock. All timestamps from server clock only.
+- Policy changes apply to FUTURE records only. At record creation, snapshot `schedule {shiftStart, shiftEnd, expectedMinutes, graceMinutes, timezone}` on the attendance document; all later calculations for that record use the snapshot. Ignore workDates before `effectiveFrom` everywhere (no retroactive missed records).
+- Lateness: `lateMinutes = max(0, floor((punchIn.at - scheduledStartInstant)/60000))` where `scheduledStartInstant = workDate + snapshot.shiftStart` in the business timezone; `isLate = lateMinutes > graceMinutes`. Early punch-in → 0. On non-working days there is no lateness (`late: { isLate: false, minutes: 0 }`). Lateness never changes workingStatus.
+- Working status: `workedMinutes = floor((punchOut.at - punchIn.at) / 60000)`; `>= snapshot.expectedMinutes` → `completed`; `< snapshot.expectedMinutes` → `incomplete`; open → `in_progress`; no break deduction. Reject if punchOut ≤ punchIn.
+- Verification: reviewable only when `workingStatus === 'completed' || workingStatus === 'incomplete'`. Marking `invalid` requires remarks (5–500 chars). Re-review allowed; decisions appended to `verification.history`. Reviewer scope per section 3. Missed and in_progress/missing-punch-out records are not reviewable and do not appear in the verification queue.
+- Punch-in:
+  - Reject with 409 `SHIFT_MARKED_MISSED` if today's record is `missed`.
+  - Reject with 409 `PUNCH_IN_WINDOW_CLOSED` on a working day after `shiftStart + punchInWindowMinutes` (message: "The punch-in window has closed. Ask your manager").
+  - Reject with 409 `ALREADY_PUNCHED_IN` if today's record already exists.
+  - Geofence and selfie checks enforced.
+  - A stale open record from a previous day never blocks today's punch-in and is no longer auto-closed; if not yet flagged, flag it lazily at punch-in (`exceptions.missingPunchOut.flaggedAt`).
+- Punch-out:
+  - Atomic update filter includes `workDate: <today>` (`{ employeeId, workDate: today, workingStatus: 'in_progress' }`) so a stale record can never receive an arbitrary punch-out.
+  - If no open record for today but a flagged stale record exists → 409 `MISSING_PUNCH_OUT_NEEDS_CORRECTION` ("Ask your manager or an admin to resolve yesterday's missing punch-out"); otherwise 409 `NO_OPEN_ATTENDANCE`.
+  - Shifts crossing business midnight are unsupported.
+- Overtime candidate: `max(0, workedMinutes - snapshot.expectedMinutes)`. Request eligible only when `completed`, candidate > 0, verification not invalid; `requestedMinutes <= candidate`; never auto-approved; late arrival does not remove or create overtime.
+- Exclusions: users with role employee or manager, accountStatus 'active', dateOfJoining null or ≤ workDate, workDate ≥ effectiveFrom, workDate in workingDays. Admins never. `isExcludedByLeaveOrHoliday(user, workDate)` returns false.
+- Reviewer-only correction: `PATCH /api/attendance/:id/resolve-missing-punch-out` (manager, admin; scope per reviewer matrix; never own record; body `{ punchOutAt: ISO datetime, reason: 5–500 chars }`). Allowed only when record is `in_progress` with unresolved flagged exception. PunchOutAt must be on same business workDate, > punchIn.at, and ≤ now. Atomic update sets punchOut {at, selfie null, location null, source: 'reviewer_correction'}, workedMinutes, workingStatus, `closedBy: 'reviewer'`, resolves exception, appends to corrections, AuditLog `ATTENDANCE_CORRECTED`, notifies employee, emits `attendance:updated`. Concurrent double-resolve yields 409 `INVALID_TRANSITION`. Re-evaluates overtime candidates without auto-approving.
 
 ## 6. Geolocation and geofencing
 
@@ -174,7 +180,7 @@ Types: `overtime_requested`, `overtime_approved`, `overtime_rejected`, `attendan
 
 Success: `{ "success": true, "data": ..., "meta"?: { page, limit, total, totalPages } }`.
 Error: `{ "success": false, "error": { "code": "STRING_CODE", "message": "...", "details"?: [...] } }`.
-Status codes: 200, 201, 400 `VALIDATION_ERROR`, 401 `UNAUTHENTICATED|TOKEN_EXPIRED|INVALID_CREDENTIALS`, 403 `FORBIDDEN|ADMIN_NOT_ELIGIBLE|ACCOUNT_INACTIVE|ACCOUNT_SUSPENDED|BAD_ORIGIN|SIGNUP_DISABLED`, 404 `NOT_FOUND`, 409 conflict codes (`ALREADY_PUNCHED_IN|NO_OPEN_ATTENDANCE|HAS_TEAM_MEMBERS|OPEN_SHIFT|INVALID_TRANSITION|INVITATION_ALREADY_PENDING|INVITATION_ALREADY_ACCEPTED|ACCOUNT_ALREADY_ACTIVE|EMPLOYEE_ID_EXISTS|RESEND_LIMIT_REACHED|SEND_IN_PROGRESS`), 410 `INVITATION_EXPIRED|INVITATION_REVOKED`, 413 `FILE_TOO_LARGE`, 415 `UNSUPPORTED_MEDIA_TYPE`, 422 location rules, 429 `RATE_LIMITED|RESEND_COOLDOWN` (details.retryAfterSeconds), 500 `INTERNAL_ERROR|INVITATION_STATE_UPDATE_FAILED`, 502 `STORAGE_UNAVAILABLE|EMAIL_INVALID_API_KEY|EMAIL_SANDBOX_RECIPIENT_RESTRICTED|EMAIL_DOMAIN_NOT_VERIFIED|EMAIL_RATE_LIMITED|EMAIL_QUOTA_EXCEEDED|EMAIL_INVALID_RECIPIENT_OR_PARAMS|EMAIL_STATUS_NOT_PERMITTED|EMAIL_TIMEOUT|EMAIL_PROVIDER_ERROR`, 503 `EMAIL_NOT_CONFIGURED`.
+Status codes: 200, 201, 400 `VALIDATION_ERROR`, 401 `UNAUTHENTICATED|TOKEN_EXPIRED|INVALID_CREDENTIALS`, 403 `FORBIDDEN|ADMIN_NOT_ELIGIBLE|ACCOUNT_INACTIVE|ACCOUNT_SUSPENDED|BAD_ORIGIN|SIGNUP_DISABLED`, 404 `NOT_FOUND`, 409 conflict codes (`ALREADY_PUNCHED_IN|NO_OPEN_ATTENDANCE|HAS_TEAM_MEMBERS|OPEN_SHIFT|INVALID_TRANSITION|INVITATION_ALREADY_PENDING|INVITATION_ALREADY_ACCEPTED|ACCOUNT_ALREADY_ACTIVE|EMPLOYEE_ID_EXISTS|EMAIL_ALREADY_EXISTS|RESEND_LIMIT_REACHED|SEND_IN_PROGRESS|SHIFT_MARKED_MISSED|PUNCH_IN_WINDOW_CLOSED|MISSING_PUNCH_OUT_NEEDS_CORRECTION`), 410 `INVITATION_EXPIRED|INVITATION_REVOKED`, 413 `FILE_TOO_LARGE`, 415 `UNSUPPORTED_MEDIA_TYPE`, 422 location rules, 429 `RATE_LIMITED|RESEND_COOLDOWN` (details.retryAfterSeconds), 500 `INTERNAL_ERROR|INVITATION_STATE_UPDATE_FAILED`, 502 `STORAGE_UNAVAILABLE|EMAIL_INVALID_API_KEY|EMAIL_SANDBOX_RECIPIENT_RESTRICTED|EMAIL_DOMAIN_NOT_VERIFIED|EMAIL_RATE_LIMITED|EMAIL_QUOTA_EXCEEDED|EMAIL_INVALID_RECIPIENT_OR_PARAMS|EMAIL_STATUS_NOT_PERMITTED|EMAIL_TIMEOUT|EMAIL_PROVIDER_ERROR`, 503 `EMAIL_NOT_CONFIGURED`.
 Pagination on every list endpoint: `page` (default 1), `limit` (default 20, max 100). Dates are `YYYY-MM-DD` business dates.
 
 Endpoints (all under `/api`; `A`=any authenticated, workforce `W`=E,M, role letters E/M/Ad):
@@ -189,14 +195,14 @@ POST /auth/invitations/validate                 public {token} → safe metadata
 POST /auth/accept-invitation                    public {token, password, confirmPassword} → activates account
 
 GET   /users                  Ad  filters: role, search, isActive, managerId, page, limit
-GET   /users/team             M   own team members
+GET   /users/team             M   team members (including invited, active, suspended) with invitation summaries
 GET   /users/managers         Ad  active managers (for assignment dropdown)
 GET   /users/:id              Ad
 PATCH /users/:id              Ad
 
 POST  /admin/invitations                         Ad  create invitation & provision stub {name, email, role, employeeId?, department?, designation?, managerId?}
-GET   /admin/invitations                         Ad  filters: status, role, search, page, limit
-GET   /admin/invitations/email-status            Ad  returns {provider: 'resend', configured, senderAddress, senderDomain, sandboxSender, canReadStatus: null} (never any secret)
+GET   /admin/invitations                         Ad  filters: status, role, search, page, limit (returns invitedBy)
+GET   /admin/invitations/email-status            Ad  returns {provider: 'resend', configured, senderAddress, senderDomain, sandboxSender, canReadStatus: null}
 GET   /admin/invitations/:id                     Ad  view invitation details
 POST  /admin/invitations/:id/resend              Ad  rotates token, resets expiry, resends email
 POST  /admin/invitations/:id/revoke              Ad  revokes pending invitation
@@ -204,9 +210,15 @@ POST  /admin/invitations/:id/check-delivery      Ad  polls Resend API for status
 POST  /admin/email/test                          Ad  sends fixed test template {to}
 GET   /admin/email/messages/:providerMessageId   Ad  calls resend.emails.get, returns {id, lastEvent, createdAt, to}
 
+POST  /team/invitations                          M   invite employee to own team {name, email, employeeId?, department?, designation?, dateOfJoining?}
+GET   /team/invitations                          M   scoped team invitations (filters: status, search, page, limit)
+GET   /team/invitations/:id                      M   view scoped invitation details
+POST  /team/invitations/:id/resend               M   resend scoped invitation
+POST  /team/invitations/:id/revoke               M   revoke scoped invitation
+
 GET  /attendance/today                           W   own record for today or null (admin → 403 ADMIN_NOT_ELIGIBLE)
 GET  /attendance/me                              W   from, to, workingStatus, page, limit (admin → 403 ADMIN_NOT_ELIGIBLE)
-GET  /attendance/team                            M   from, to, userId, workingStatus, verificationStatus, overtimeStatus
+GET  /attendance/team                            M   from, to, userId, workingStatus, verificationStatus, overtimeStatus, late, exception
 GET  /attendance                                 Ad  same filters + role
 GET  /attendance/:id                             A   authorised by scope
 POST /attendance/punch-in                        W   multipart (admin → 403 ADMIN_NOT_ELIGIBLE before upload)
@@ -215,103 +227,82 @@ GET  /attendance/:id/selfies/:kind               A   authorised by scope (seeded
 PATCH /attendance/:id/verification               M,Ad  {status: valid|invalid, remarks?} (no self-review: 403)
 POST  /attendance/:id/overtime                   W   owner only {requestedMinutes, reason} (admin → 403 ADMIN_NOT_ELIGIBLE)
 PATCH /attendance/:id/overtime/review            M,Ad  {decision: approved|rejected, remarks?} (no self-review: 403)
+PATCH /attendance/:id/resolve-missing-punch-out  M,Ad  {punchOutAt, reason} (reviewer scope, no self-resolve: 403)
 GET   /overtime/pending                          M,Ad  pending overtime in scope (page, limit)
 
 GET /reports/daily                               A   date OR from+to, userId, page, limit; scoped by role
 GET /reports/daily/export?format=xlsx|pdf        A   same filters, same scoping, max 5000 rows (truncated header if >5000)
 GET /dashboard/summary                           A   role-scoped real counts (admin summary counts workforce only)
 GET/PUT /settings/geofence                       Ad only
+GET/PUT /settings/attendance-policy              Ad only (shiftStart, shiftEnd, workingDays, expectedMinutes, graceMinutes, punchInWindowMinutes, missingPunchOutAfterMinutes, breakDeductionMinutes, timezone)
 GET   /notifications  (unreadOnly, page, limit) | GET /notifications/unread-count | PATCH /notifications/:id/read | PATCH /notifications/read-all    A
 ```
 `GET /attendance` and `/attendance/team` scoping is done in one shared `buildScopeFilter(user)` service helper used by attendance, overtime, reports, export and dashboard so scoping can never diverge.
-Create invitation returns 201 even if email failed with `data: { invitation: <safe fields>, email: { status: 'accepted'|'failed', providerMessageId?, error? } }`. Resend returns 200 with `{ invitation, email }` on success, or 502 with the mapped error envelope on failure. Raw tokens and dev links are NEVER included in any response.
 
-Reports row fields: employeeName, employeeEmail, workDate, punchInAt, punchOutAt, punchInLocation, punchOutLocation, workedMinutes, workedHours (2 dp), workingStatus, verificationStatus, overtimeStatus, hasPunchInSelfie, hasPunchOutSelfie, attendanceId (client builds the selfie URL from it). Response also includes `summary` counts by workingStatus, verificationStatus, overtimeStatus.
-Export: Excel and PDF contain the same rows as text columns (location as "lat, lng"); selfies are NOT embedded. Reuse the report service; stream the file.
+Reports row fields: employeeName, employeeEmail, workDate, punchInAt, punchOutAt, punchInLocation, punchOutLocation, workedMinutes, workedHours (2 dp), workingStatus, displayStatus, isLate, lateMinutes, verificationStatus, overtimeStatus, hasPunchInSelfie, hasPunchOutSelfie, attendanceId. Missed rows have blank times and duration.
+Export: Excel and PDF contain the same rows with professional presentation; selfies and images are NOT embedded.
 
 `GET /dashboard/summary` returns:
 - employee: last 30 business days → completedDays, incompleteDays, missedDays, totalWorkedMinutes, pendingOvertime, approvedOvertimeMinutes, invalidDays.
-- manager: today → teamSize, punchedIn, notYetPunchedIn, completed, incomplete, pendingVerification, pendingOvertime.
-- admin: totalUsers by role, activeUsers, today → punchedIn, completed, incomplete, missed, pendingVerification, pendingOvertime (counts workforce only; admin has no personal summary).
+- manager: today → teamSize, punchedIn (punchIn.at exists), notYetPunchedIn, completed, incomplete, pendingVerification, pendingOvertime, lateCount, missingPunchOutCount, missedCount.
+- admin: totalUsers by role, activeUsers, today → punchedIn (punchIn.at exists), completed, incomplete, missed, pendingVerification, pendingOvertime, lateCount, missingPunchOutCount (counts workforce only; admin has no personal summary).
 
 ## 10. Notifications, jobs and realtime
 
 Notification triggers (created in `notification.service.js`, which also emits over Socket.IO):
-- Overtime requested → the employee's manager (if exists) + all active admins (if requester is a manager or employee has no manager; never the requester).
-- Overtime approved/rejected → the employee.
-- Verification set valid/invalid → the employee.
-- Missed punch-in alert → ACTIVE employee/manager, at `MISSED_PUNCH_IN_ALERT_TIME` (default `11:00`) on working days when no record exists for today.
-- Missed punch-out alert → ACTIVE employee/manager, at `MISSED_PUNCH_OUT_ALERT_TIME` (default `20:00`) when today's record is still `in_progress`.
-- Auto-close → workforce user + their manager (`attendance_auto_closed`), at `AUTO_CLOSE_TIME` (default `00:10`) for any `in_progress` record with `workDate` < today. Closes open records of any workforce user (including inactive ones), but sends no notification to inactive users.
-- Active workforce scope: missed-punch alerts, auto-close notifications, dashboard `teamSize`/`notYetPunchedIn`, and review scope consider only users with `accountStatus === 'active'` (auto-close still closes open records of any workforce user).
-Jobs in `server/src/jobs/` using node-cron with `timezone: BUSINESS_TIMEZONE`, enabled when `ENABLE_CRON=true`. Alerts are idempotent: never create the same alert type for the same user and workDate twice (check before insert). Single-instance assumption is documented. Lazy auto-close at punch-in covers server sleep on free hosting.
+- Overtime requested → employee's manager (if exists) + all active admins (if requester is a manager or employee has no manager; never requester).
+- Overtime approved/rejected → employee.
+- Verification set valid/invalid → employee.
+- Missed punch-in reminder → employee (now ≥ shiftStart + graceMinutes).
+- Missed shift alert → employee + manager/admins (now ≥ shiftStart + punchInWindowMinutes).
+- Missing punch-out alert → employee + manager/admins (now ≥ shiftEnd + missingPunchOutAfterMinutes or workDate < today).
+- Invitation accepted → inviter + manager (if different from inviter; never the accepted user).
 
-Socket.IO (`server/src/realtime/`): client connects directly to `VITE_SOCKET_URL` (Vercel cannot proxy WebSockets) with `auth: { token: <socket-token> }` fetched from `/auth/socket-token`; server verifies `purpose==='socket'`, loads the user, rejects inactive. CORS = `CLIENT_ORIGIN`, credentials true. Rooms: `user:<id>`, plus `role:admin` for admins. Events emitted after the DB write succeeded:
+Scheduled evaluation (`attendanceTick` in `server/src/jobs/attendanceTick.job.js`):
+- Runs at boot and every 5 minutes (`*/5 * * * *`, timezone `BUSINESS_TIMEZONE`) when `ENABLE_CRON=true`.
+- Single idempotent job evaluates thresholds against the active DB policy document over the last 3 business days (catch-up after server sleep; never older than 3 days, never before `effectiveFrom`).
+- Stage 1: Reminder notification `missed_punch_in` to employee with no record for the day.
+- Stage 2: Final cutoff creates `missed` attendance document (`punchIn: null`, `punchOut: null`, `workedMinutes: null`, `closedBy: 'system'`, snapshot `schedule`), sends notification `missed_shift` to employee and manager (admins if no manager).
+- Stage 3: Missing punch-out flags in_progress records with `exceptions.missingPunchOut.flaggedAt`, sends notification `missing_punch_out` to employee and manager.
+- Retires old jobs `autoClose`, `missedPunchIn`, `missedPunchOut` and lazy auto-close-to-missed behavior.
+
+Socket.IO (`server/src/realtime/`):
 - `notification:new` `{notification}` → recipient's `user:` room.
 - `attendance:updated` `{attendanceId}` → employee, their manager, and `role:admin`.
-Client: on `attendance:updated` call `api.util.invalidateTags` for attendance/report/dashboard/overtime tags; on `notification:new` invalidate Notification tags and show a toast. On socket reconnect, invalidate all. Token refetched on every reconnect attempt. The app must work (via manual refetch) when the socket is down.
+- On `invitation_accepted` notification: client invalidates User, Invitation, and Dashboard tags so team lists refresh without reload.
 
 ## 11. Frontend
 
-Routes: `/login`, `/signup`, `/request-invitation`, `/accept-invitation` (public; sets `meta referrer no-referrer`; states: no-token friendly panel, loading, valid, expired, revoked, already accepted, invalid, success), `/` (redirect by role), `/employee`, `/employee/history`, `/manager`, `/manager/review`, `/manager/overtime`, `/manager/reports`, `/admin`, `/admin/users`, `/admin/attendance`, `/admin/review`, `/admin/overtime`, `/admin/reports`, `/admin/settings`, `/notifications`, `*` (404).
-Workforce portal routes `/employee*` allow roles: `employee`, `manager`. Admin is never a workforce user: admin is redirected to `/admin` and never sees punch UI, "My attendance", employee history, personal summary, or shift timer. Manager sidebar has both team pages and "My attendance".
-ProtectedRoute checks `allowedRoles`; session is restored from `/auth/me` on load (never from stored role). If `/auth/me` returns 401 on an unauthenticated visit to `/login`, no toast is shown.
-Login page (/login): displays "Request a new link" (→ `/request-invitation`). Shows "Create an account" only when `publicRegistrationEnabled` is true.
-Request invitation page (/request-invitation): public self-service form with email input; always displays generic confirmation panel; 60 s cooldown on submit.
-Accept invitation page (/accept-invitation): with no token, shows friendly panel ("Open the link from your invitation email, or request a new one") with button to `/request-invitation`. Expired/invalid states offer "Request a new link"; revoked/already accepted states show "This invitation is no longer valid. Contact your administrator."
-Signup page (/signup): when `ALLOW_PUBLIC_REGISTRATION=false` or backend returns `403 SIGNUP_DISABLED`, displays "Registration is invitation-only" with button to `/request-invitation`.
-RTK Query: one `api` slice with `injectEndpoints` per feature; tag types `Me, User, Attendance, Today, Overtime, Report, Dashboard, Notification, Settings, Invitation, EmailStatus`; invalidate precisely after mutations. Redux slices only for UI state that must be global (auth session flag, theme). Do not copy server data into slices.
-UI: Tailwind + shadcn/ui, consistent tokens as CSS variables, dark mode via `class` strategy: default follows `prefers-color-scheme`, user toggle persisted in `localStorage` (`theme`), applied before first paint to avoid flash. Layout: sidebar (desktop), top bar + sheet menu (mobile), notification bell with unread badge. Tables: responsive (horizontal scroll or card layout on mobile), loading skeletons, empty states, error states with retry. Confirm dialogs for reject/invalid. Status badges: working (`in_progress`, `completed`, `incomplete`, `missed`), verification, overtime, each with distinct color AND text (never color alone). WCAG basics: labels, focus rings, `aria-live` for toasts and camera errors, keyboard-operable dialogs. Dashboard numbers come only from API.
-Admin Users page features tabs for "Staff Directory" and "Invitations & Onboarding", with an "Invite User" modal dialog.
-Email-status UI rules:
-- No development mode, no simulated delivery labels ("Dev Link", "Local simulated") and no development link dialog.
-- Creation / resend displays real Resend result: accepted → green panel with copyable provider message ID; failed → red error with mapped actionable message and retry button.
-- Delivery column: badge (pending / accepted / failed) + `emailLastEvent` chip (Delivered, Bounced, Delayed, etc.) + "Check delivery" icon button (calls `/admin/invitations/:id/check-delivery`).
-- Resend button disabled while in flight and during cooldown countdown (from `retryAfterSeconds`).
-- Banners: sandbox sender banner when `sandboxSender` is true; red alert banner when email is not configured.
-- Admin Settings page: "Email delivery" card showing provider, configured status, sender address, sandbox warning, recipient field (prefilled with admin email), "Send test email" button, and live delivery polling panel (polls `/admin/email/messages/:id` every 5 s for up to 60 s).
-Selfie review: dialog with punch-in and punch-out images side by side (via the selfie endpoint), coordinates with "Open in maps" link (`https://www.google.com/maps?q=lat,lng`), geofence distance, times, worked minutes, history of past decisions, remarks textarea, Valid / Invalid buttons.
+Routes: `/login`, `/signup`, `/request-invitation`, `/accept-invitation`, `/`, `/employee`, `/employee/history`, `/manager`, `/manager/team`, `/manager/review`, `/manager/overtime`, `/manager/reports`, `/admin`, `/admin/users`, `/admin/attendance`, `/admin/review`, `/admin/overtime`, `/admin/reports`, `/admin/settings`, `/notifications`, `*` (404).
+Workforce portal routes `/employee*` allow roles: `employee`, `manager`. Admin is never a workforce user: admin is redirected to `/admin`.
+Manager team page (/manager/team): table of team members with status badges (Invited / Active / Suspended) and real email delivery state; "Invite Employee" dialog (fields: name, email, employeeId, department, designation, dateOfJoining; role and manager hidden); Resend/Revoke row actions for invited members.
+Admin Users page (/admin/users): shows Reporting manager column and Invited by for invited users; Invite dialog with role selection (employee/manager) and optional manager assignment; reassignment controls.
+Admin Settings page (/admin/settings): "Attendance policy" card with shiftStart, shiftEnd, workingDays, expectedMinutes, graceMinutes, punchInWindowMinutes, missingPunchOutAfterMinutes, inline validation, and notice "Changes apply to new attendance records only".
+Review UI: "Resolve missing punch-out" dialog for managers and admins to resolve flagged in-progress exceptions with datetime input bounded to record workDate and required reason.
+Reports & exports: A4 landscape PDF with KPI cards, horizontal distribution bar, validity/overtime tables, repeating headers, colored pills meeting 4.5:1 contrast, footers with page numbers; Excel export with Summary and Records sheets; zero AI controls or text.
 
 ## 12. Testing (minimum required, all must pass)
 
-Backend, with mongodb-memory-server and the fake storage adapter:
-Auth/RBAC: signup creates employee and ignores/rejects role; duplicate email 409; wrong password 401; no cookie 401; inactive user 403 on login and on existing token; employee cannot read another's attendance (404); manager cannot read another team (404); employee cannot review verification/overtime (403); admin sees all; role cannot be self-escalated; user PATCH rules (last admin, HAS_TEAM_MEMBERS, OPEN_SHIFT).
-Workforce gating: admin calling punch-in/punch-out/today/me/overtime receives 403 ADMIN_NOT_ELIGIBLE and no attendance document or Cloudinary upload is created.
-Reviewer matrix: manager reviewing own record → 403; manager reviewing another manager's team member → 404; manager reviewing a manager's record → 403/404; employee without manager overtime succeeds and notifies all active admins; manager reassignment dynamically transfers scope.
-Concurrent double-review: two simultaneous overtime reviews or verification updates on the same record → exactly one transition succeeds, other gets 409 INVALID_TRANSITION.
-Attendance: punch-in creates; duplicate punch-in 409; punch-out without punch-in 409; duplicate punch-out 409; missing selfie/location 400; invalid coordinates 400; wrong mimetype 415; bad magic bytes 415; oversize 413; server timestamps ignore client-supplied time; concurrent `Promise.all` of 10 punch-ins yields exactly one record and 9 conflicts; concurrent punch-outs yields one success.
-Working hours (service unit tests with controlled clock): 479 → incomplete, 480 → completed, 481 → completed, open → in_progress, out ≤ in rejected, auto-close → missed.
-Geofence: inside OK, outside 422, low accuracy 422, disabled skips.
-Verification/overtime: reviewer scope; no self-review; invalid requires remarks; history appended; overtime eligibility matrix (not completed, ≤ 480, over max minutes, invalid verification, duplicate pending, resubmit after reject OK); only pending can be reviewed; approving invalid-attendance blocked.
-Reports/export: scoping per role; required fields; date filter and range; xlsx/pdf export respects scope and returns correct content type; zero rows returns valid empty file; > 5000 rows capped with header notice.
-Notifications: created for each trigger, recipients correct, alerts idempotent, unread count, mark read only own; jobs exclude admins and alerts sent only to active users.
-Socket: authenticated connect, rejected with bad/expired/wrong-purpose token, event delivered to correct rooms only.
-Invitations & Email:
-- Provider injected in tests only (fake provider used strictly in unit tests; zero fake/simulated delivery in running app);
-- Unconfigured email → create/resend/test endpoints return 503 EMAIL_NOT_CONFIGURED and create no records;
-- Provider called once with expected from/to/subject/html/text and idempotency key `invitation:<id>:attempt:<n>`;
-- SDK `{data:{id},error:null}` → accepted + providerMessageId; `{data:null,error:{name,message}}` (not thrown) maps to failed + mapped error code (201 on create, 502 on resend);
-- Thrown network error maps to failed EMAIL_PROVIDER_ERROR; timeout maps to EMAIL_TIMEOUT with `outcomeUnknown: true` and retry reuses attempt number;
-- Resend 403 sandbox maps to EMAIL_SANDBOX_RECIPIENT_RESTRICTED with actionable guidance; status permission failure maps to EMAIL_STATUS_NOT_PERMITTED;
-- Resend success rotates token (old fails, new works); resend failure leaves old token valid;
-- Concurrent double resend makes exactly one provider call (the other gets 409 SEND_IN_PROGRESS);
-- Cooldown 429 with retryAfterSeconds; max resends 409;
-- Public self-service `POST /api/auth/invitations/request-link`: pending invitation triggers background send; unknown or invalid email produces identical 200 generic response without provider call; rate-limited per-email (SHA-256) and per-IP;
-- Admin test email: sends fixed template, rate-limited, non-admin 403;
-- Message status endpoint: returns only id/lastEvent/createdAt/to; requires valid invitation or test audit reference;
-- check-delivery stores `emailLastEvent`; 409 if no provider message id;
-- No-leak test: verifies zero raw tokens or API keys appear in logs, responses or audit entries;
-- Email template properly escapes hostile recipient/org names;
-- Env validation rejects placeholder keys, enforces https non-localhost APP_BASE_URL in production, and rejects removed EMAIL_MODE.
-Frontend: ProtectedRoute redirects; status badge mapping; camera component stops tracks on unmount; login footer links per auth config; request-invitation generic panel; accept-invitation friendly fallback; delivery chips; cooldown state; settings email verification panel; zero dev-link UI rendered.
+Backend (Vitest + Supertest + mongodb-memory-server):
+- Auth/RBAC, User management, Workforce gating, Reviewer matrix (no self-review, out-of-scope 404).
+- Attendance policy & rules with injectable clock:
+  - Policy examples (09:00-17:00, grace 10, expected 480): completed not late, completed late, incomplete late, completed with overtime candidate, reminder at 09:10, punch-in window closure at 13:01 (409 PUNCH_IN_WINDOW_CLOSED), missed shift at 13:00 (409 SHIFT_MARKED_MISSED on punch-in attempt), missing punch-out flagged (never missed, no duration).
+  - Boundary 479/480/481; verification not allowed on missed or flagged records; overtime request blocked on non-completed shifts.
+  - Tick idempotency: run twice yields 1 notification and 1 missed record per user/day; concurrent ticks and punch-ins yield no duplicates; tick catch-up for previous day and nothing older than 3 days.
+  - Reviewer resolve endpoint: scope checks, self-resolve blocked, time validation, atomic double-resolve, AuditLog entry, employee notified.
+  - Null-safety: every consumer of `punchIn` tested with missed records (reports, export, dashboard, selfie, overtime).
+- Onboarding & team invitations:
+  - Admin invites employee (with manager) and manager; invalid managerId rejected; admin role rejected.
+  - Manager invites employee to own team; manipulated payload (role/managerId) rejected; cannot invite managers/admins; scope isolation; duplicate handling (409 EMAIL_ALREADY_EXISTS / INVITATION_ALREADY_PENDING); acceptance preserves managerId; suspended manager gets 403; cannot suspend manager with invited members.
+  - End-to-end automated flow from admin provisioning to manager invite, employee acceptance, punch-in, and review.
+- Reports and exports:
+  - Unit tests for `report.format.js` formatters.
+  - PDF and Excel exports: assert content types, filenames, correct page numbers ("Page 1 of N"), absence of raw enums and markdown tokens, WCAG 4.5:1 contrast ratios on pills, no images/selfies.
 
 ## 13. Environment variables
 
-`server/.env.example`: `NODE_ENV, PORT, MONGODB_URI, JWT_SECRET, JWT_EXPIRES_IN=12h, CLIENT_ORIGIN, BUSINESS_TIMEZONE=Asia/Kolkata, STANDARD_SHIFT_MINUTES=480, WORKING_DAYS=1,2,3,4,5, CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET, CLOUDINARY_FOLDER=attendance, GEOFENCE_ENABLED=false, GEOFENCE_OFFICE_LAT, GEOFENCE_OFFICE_LNG, GEOFENCE_RADIUS_METERS=200, GEOFENCE_MAX_ACCURACY_METERS=100, ADMIN_NAME, ADMIN_EMAIL, ADMIN_PASSWORD, ENABLE_CRON=true, MISSED_PUNCH_IN_ALERT_TIME=11:00, MISSED_PUNCH_OUT_ALERT_TIME=20:00, AUTO_CLOSE_TIME=00:10, EMAIL_PROVIDER=resend, RESEND_API_KEY, EMAIL_FROM, EMAIL_REPLY_TO, APP_BASE_URL, INVITATION_EXPIRY_HOURS=72, INVITATION_RESEND_COOLDOWN_SECONDS=60, INVITATION_MAX_RESENDS=10, EMAIL_SEND_TIMEOUT_MS=10000, ALLOW_PUBLIC_REGISTRATION=true`.
-Validation rules:
-- `EMAIL_PROVIDER=resend` is the only supported email provider. `EMAIL_MODE` is removed.
-- Server boots even if email settings are missing (attendance keeps working locally), logging a warning that email is not configured.
-- When unconfigured, email-sending endpoints return 503 `EMAIL_NOT_CONFIGURED` before creating records.
+`server/.env.example`: `NODE_ENV, PORT, MONGODB_URI, JWT_SECRET, JWT_EXPIRES_IN=12h, CLIENT_ORIGIN, BUSINESS_TIMEZONE=Asia/Kolkata, STANDARD_SHIFT_MINUTES=480, WORKING_DAYS=1,2,3,4,5, CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET, CLOUDINARY_FOLDER=attendance, GEOFENCE_ENABLED=false, GEOFENCE_OFFICE_LAT, GEOFENCE_OFFICE_LNG, GEOFENCE_RADIUS_METERS=200, GEOFENCE_MAX_ACCURACY_METERS=100, ADMIN_NAME, ADMIN_EMAIL, ADMIN_PASSWORD, ENABLE_CRON=true, EMAIL_PROVIDER=resend, RESEND_API_KEY, EMAIL_FROM, EMAIL_REPLY_TO, APP_BASE_URL, INVITATION_EXPIRY_HOURS=72, INVITATION_RESEND_COOLDOWN_SECONDS=60, INVITATION_MAX_RESENDS=10, EMAIL_SEND_TIMEOUT_MS=10000, ALLOW_PUBLIC_REGISTRATION=true`.
+(Env vars `MISSED_PUNCH_IN_ALERT_TIME`, `MISSED_PUNCH_OUT_ALERT_TIME`, `AUTO_CLOSE_TIME`, `XAI_*`, `GROQ_*` are retired).
 - Production requires a configured key (starting with `re_` and not the placeholder), valid `EMAIL_FROM`, and an https, non-localhost `APP_BASE_URL`.
 - `APP_BASE_URL` is normalised (no trailing slash, no path) and links are built with `new URL('/accept-invitation', base)`.
 `client/.env.example`: `VITE_API_BASE_URL=/api`, `VITE_SOCKET_URL` (backend origin; `http://localhost:5000` in dev).
