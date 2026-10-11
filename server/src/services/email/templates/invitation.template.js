@@ -17,6 +17,7 @@ export const escapeHtml = (unsafe) => {
 /**
  * Renders the invitation email subject, HTML body, and plain text part.
  * Formats expiresAt in BUSINESS_TIMEZONE with inline styles, no external images, no tracking pixels.
+ * Contains exactly one call-to-action link in HTML and fallback URL as text.
  */
 export const renderInvitationTemplate = ({
   name,
@@ -74,7 +75,7 @@ export const renderInvitationTemplate = ({
 
       <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #64748b; word-break: break-all;">
         <p style="margin: 0 0 6px 0;">If the button above does not work, copy and paste this link into your browser:</p>
-        <p style="margin: 0;"><a href="${safeUrl}" style="color: #2563eb;">${safeUrl}</a></p>
+        <p style="margin: 0; color: #2563eb;">${safeUrl}</p>
       </div>
 
       <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #64748b;">
@@ -106,3 +107,5 @@ If you weren't expecting this invitation, you can ignore this email.
 
   return { subject, html, text };
 };
+
+export default renderInvitationTemplate;

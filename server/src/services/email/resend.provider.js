@@ -54,7 +54,10 @@ export class ResendEmailProvider extends EmailProvider {
     }
   }
 
-  async sendInvitation({ to, subject, html, text, replyTo, idempotencyKey }) {
+  /**
+   * Send an email through Resend.
+   */
+  async send({ to, subject, html, text, replyTo, idempotencyKey }) {
     if (!this.client) {
       return {
         ok: false,
@@ -84,6 +87,7 @@ export class ResendEmailProvider extends EmailProvider {
       const requestOptions = {};
       if (idempotencyKey) {
         requestOptions.idempotencyKey = idempotencyKey;
+        requestOptions.headers = { 'Idempotency-Key': idempotencyKey };
       }
 
       const sendPromise = this.client.emails.send(payload, requestOptions);
@@ -122,4 +126,62 @@ export class ResendEmailProvider extends EmailProvider {
       };
     }
   }
+
+  /**
+   * Retrieve email delivery status from Resend.
+   */
+  async getStatus(providerMessageId) {
+    if (!this.client) {
+      return {
+        ok: false,
+        error: {
+          code: EMAIL_ERROR_CODES.EMAIL_NOT_CONFIGURED,
+          message:
+            'Resend API key is not configured or is a placeholder. A valid RESEND_API_KEY is required to retrieve status.',
+          retryable: false,
+        },
+      };
+    }
+
+    if (!providerMessageId) {
+      return {
+        ok: false,
+        error: {
+          code: EMAIL_ERROR_CODES.EMAIL_INVALID_RECIPIENT_OR_PARAMS,
+          message: 'Provider message ID is required to retrieve status.',
+          retryable: false,
+        },
+      };
+    }
+
+    try {
+      const getPromise = this.client.emails.get(providerMessageId);
+      const result = await withTimeout(getPromise, this.timeoutMs);
+
+      if (!result || result.error || !result.data) {
+        const mapped = mapResendError(result?.error, result?.error?.statusCode, { isStatusCheck: true });
+        logger.warn(`[EMAIL:STATUS_ERROR] Code: ${mapped.code}, Message: ${mapped.message}`);
+        return {
+          ok: false,
+          error: mapped,
+        };
+      }
+
+      return {
+        ok: true,
+        lastEvent: result.data.last_event || null,
+        createdAt: result.data.created_at || null,
+        to: result.data.to || null,
+      };
+    } catch (err) {
+      const mapped = mapResendError(err, undefined, { isStatusCheck: true });
+      logger.error(`[EMAIL:STATUS_EXCEPTION] Exception thrown: ${err.message}`);
+      return {
+        ok: false,
+        error: mapped,
+      };
+    }
+  }
 }
+
+export default ResendEmailProvider;

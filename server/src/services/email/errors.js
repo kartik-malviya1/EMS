@@ -6,15 +6,43 @@ export const EMAIL_ERROR_CODES = {
   EMAIL_RATE_LIMITED: 'EMAIL_RATE_LIMITED',
   EMAIL_QUOTA_EXCEEDED: 'EMAIL_QUOTA_EXCEEDED',
   EMAIL_INVALID_RECIPIENT_OR_PARAMS: 'EMAIL_INVALID_RECIPIENT_OR_PARAMS',
-  EMAIL_PROVIDER_ERROR: 'EMAIL_PROVIDER_ERROR',
+  EMAIL_STATUS_NOT_PERMITTED: 'EMAIL_STATUS_NOT_PERMITTED',
   EMAIL_TIMEOUT: 'EMAIL_TIMEOUT',
+  EMAIL_PROVIDER_ERROR: 'EMAIL_PROVIDER_ERROR',
+};
+
+/**
+ * Maps Resend's delivery events to human-readable UI labels.
+ * Returns raw string if event is unrecognised.
+ */
+export const mapEmailLastEvent = (event) => {
+  if (!event || typeof event !== 'string') return null;
+  const eventMap = {
+    sent: 'Sent',
+    delivered: 'Delivered',
+    delivery_delayed: 'Delayed',
+    complained: 'Complained',
+    bounced: 'Bounced',
+    opened: 'Opened',
+    clicked: 'Clicked',
+    queued: 'Queued',
+    scheduled: 'Scheduled',
+    canceled: 'Canceled',
+    failed: 'Failed',
+  };
+  return eventMap[event.toLowerCase()] || event;
 };
 
 /**
  * Maps raw Resend API errors or SDK errors to stable internal codes and actionable admin messages.
  * Never includes secrets or raw API keys in messages.
+ *
+ * @param {Object} err
+ * @param {number} [statusCode]
+ * @param {Object} [options]
+ * @param {boolean} [options.isStatusCheck]
  */
-export const mapResendError = (err, statusCode) => {
+export const mapResendError = (err, statusCode, options = {}) => {
   if (!err) {
     return {
       code: EMAIL_ERROR_CODES.EMAIL_PROVIDER_ERROR,
@@ -28,7 +56,26 @@ export const mapResendError = (err, statusCode) => {
   const rawMessage = String(err.message || '');
   const status = Number(statusCode || err.statusCode || err.status || 0);
 
-  // 1. Sandbox recipient restriction (403 validation_error: only send testing emails to your own email address)
+  // Status check permission check
+  if (
+    options.isStatusCheck &&
+    (status === 403 ||
+      name === 'restricted_api_key' ||
+      name === 'invalid_permission' ||
+      rawMessage.toLowerCase().includes('restricted') ||
+      rawMessage.toLowerCase().includes('permission') ||
+      rawMessage.toLowerCase().includes('sending access'))
+  ) {
+    return {
+      code: EMAIL_ERROR_CODES.EMAIL_STATUS_NOT_PERMITTED,
+      message:
+        'The configured Resend API key has Sending access only and cannot read message delivery status. Create a Full access key in the Resend dashboard to inspect delivery events.',
+      retryable: false,
+      outcomeUnknown: false,
+    };
+  }
+
+  // 1. Sandbox recipient restriction (403: can only send testing emails to your own email address)
   if (
     (status === 403 && rawMessage.includes('only send testing emails to your own email address')) ||
     rawMessage.includes('only send testing emails to your own email address') ||
@@ -37,7 +84,7 @@ export const mapResendError = (err, statusCode) => {
     return {
       code: EMAIL_ERROR_CODES.EMAIL_SANDBOX_RECIPIENT_RESTRICTED,
       message:
-        "Resend's test sender can only deliver to your own Resend account email. Verify a domain at resend.com/domains and set EMAIL_FROM to an address on it to invite other people.",
+        "Resend's test sender can only deliver to your own Resend account email. Verify a domain at resend.com/domains and set EMAIL_FROM to an address on it to email other people.",
       retryable: false,
       outcomeUnknown: false,
     };
@@ -58,10 +105,11 @@ export const mapResendError = (err, statusCode) => {
     };
   }
 
-  // 3. API key invalid / restricted / suspended / permission missing
+  // 3. API key invalid / restricted / suspended / permission missing (sending context)
   if (
     status === 401 ||
     name === 'missing_api_key' ||
+    name === 'invalid_api_key' ||
     name === 'restricted_api_key' ||
     name === 'suspended_api_key' ||
     name === 'invalid_permission' ||

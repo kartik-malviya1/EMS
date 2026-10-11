@@ -1,27 +1,22 @@
-import { env } from '../../config/env.js';
 import { ResendEmailProvider } from './resend.provider.js';
-import { DevelopmentEmailProvider } from './development.provider.js';
 
 export { EmailProvider } from './emailProvider.interface.js';
 export { ResendEmailProvider } from './resend.provider.js';
-export { DevelopmentEmailProvider } from './development.provider.js';
-export { EMAIL_ERROR_CODES, mapResendError } from './errors.js';
+export { EMAIL_ERROR_CODES, mapResendError, mapEmailLastEvent } from './errors.js';
 export { renderInvitationTemplate, escapeHtml } from './templates/invitation.template.js';
+export { renderTestEmailTemplate } from './templates/test-email.template.js';
 
 let activeProvider = null;
 
 /**
- * Factory creating provider based on EMAIL_MODE.
+ * Creates Resend email provider instance.
  */
-export const createEmailProvider = (mode = env.EMAIL_MODE) => {
-  if (mode === 'resend') {
-    return new ResendEmailProvider();
-  }
-  return new DevelopmentEmailProvider();
+export const createEmailProvider = () => {
+  return new ResendEmailProvider();
 };
 
 /**
- * Get active email provider (singleton with override support).
+ * Get active email provider (singleton with test override support).
  */
 export const getEmailProvider = () => {
   if (!activeProvider) {
@@ -38,7 +33,7 @@ export const setEmailProvider = (provider) => {
 };
 
 /**
- * Reset injected provider back to default factory.
+ * Reset injected provider back to default singleton.
  */
 export const resetEmailProvider = () => {
   activeProvider = null;
