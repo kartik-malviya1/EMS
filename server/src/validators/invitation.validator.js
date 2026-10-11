@@ -61,3 +61,10 @@ export const acceptInvitationSchema = z.object({
   message: 'Passwords do not match',
   path: ['confirmPassword'],
 });
+
+export const requestLinkSchema = z
+  .object({
+    email: z.string().email('Valid email address is required').trim().toLowerCase(),
+  })
+  .strict();
+

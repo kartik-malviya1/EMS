@@ -457,9 +457,9 @@ export const resendInvitation = async ({
       const cooldownError = new ApiError(
         429,
         'RESEND_COOLDOWN',
-        `Please wait ${retryAfterSeconds}s before resending another invitation.`
+        `Please wait ${retryAfterSeconds}s before resending another invitation.`,
+        { retryAfterSeconds }
       );
-      cooldownError.details = { retryAfterSeconds };
       throw cooldownError;
     }
   }
@@ -816,4 +816,192 @@ export const acceptInvitation = async ({ rawToken, password, req }) => {
     message: 'Account activated successfully. You can now log in with your credentials.',
     email: user.email,
   };
+};
+
+/**
+ * Self-service: Processes "Request my invitation link" in the background.
+ * - Always run asynchronously via setImmediate so response time does not leak existence.
+ * - Finds latest invitation with status pending or expired for an account with status 'invited'.
+ * - Respects cooldown and max-resend limits.
+ * - Rotates token only upon provider acceptance.
+ * - Logs INVITATION_LINK_REQUESTED security audit event with metadata without tokens or links.
+ */
+export const processSelfServiceInvitationRequest = async ({
+  email,
+  req,
+  emailProvider = getEmailProvider(),
+}) => {
+  const normalizedEmail = email ? String(email).toLowerCase().trim() : '';
+  if (!normalizedEmail) return;
+
+  try {
+    const invitation = await Invitation.findOne({
+      email: normalizedEmail,
+      status: { $in: [INVITATION_STATUS.PENDING, INVITATION_STATUS.EXPIRED] },
+    }).sort({ createdAt: -1 });
+
+    if (!invitation) {
+      await logAuditEvent({
+        actor: null,
+        action: AUDIT_ACTIONS.INVITATION_LINK_REQUESTED,
+        targetUser: null,
+        metadata: { found: false, outcome: 'NO_INVITATION' },
+        req,
+      });
+      return;
+    }
+
+    const user = await User.findById(invitation.userId);
+    if (!user || user.accountStatus !== ACCOUNT_STATUS.INVITED) {
+      await logAuditEvent({
+        actor: null,
+        action: AUDIT_ACTIONS.INVITATION_LINK_REQUESTED,
+        targetUser: user ? { _id: user._id, email: user.email } : null,
+        invitationId: invitation._id,
+        metadata: { found: false, outcome: 'USER_NOT_INVITED' },
+        req,
+      });
+      return;
+    }
+
+    const maxResends = Number(env.INVITATION_MAX_RESENDS) || 10;
+    if ((invitation.resendCount || 0) >= maxResends) {
+      await logAuditEvent({
+        actor: null,
+        action: AUDIT_ACTIONS.INVITATION_LINK_REQUESTED,
+        targetUser: { _id: user._id, email: user.email },
+        invitationId: invitation._id,
+        metadata: { found: true, outcome: 'RESEND_LIMIT_REACHED' },
+        req,
+      });
+      return;
+    }
+
+    const cooldownSeconds = Number(env.INVITATION_RESEND_COOLDOWN_SECONDS) || 60;
+    const lastAttemptTime =
+      invitation.emailLastError?.at ||
+      invitation.lastSentAt ||
+      invitation.createdAt;
+    if (lastAttemptTime) {
+      const elapsedSeconds = (Date.now() - new Date(lastAttemptTime).getTime()) / 1000;
+      if (elapsedSeconds < cooldownSeconds) {
+        await logAuditEvent({
+          actor: null,
+          action: AUDIT_ACTIONS.INVITATION_LINK_REQUESTED,
+          targetUser: { _id: user._id, email: user.email },
+          invitationId: invitation._id,
+          metadata: { found: true, outcome: 'COOLDOWN_ACTIVE' },
+          req,
+        });
+        return;
+      }
+    }
+
+    const claimed = await claimSend(invitation._id);
+    if (!claimed) {
+      await logAuditEvent({
+        actor: null,
+        action: AUDIT_ACTIONS.INVITATION_LINK_REQUESTED,
+        targetUser: { _id: user._id, email: user.email },
+        invitationId: invitation._id,
+        metadata: { found: true, outcome: 'SEND_IN_PROGRESS' },
+        req,
+      });
+      return;
+    }
+
+    try {
+      const adminUser = await User.findById(invitation.invitedBy);
+      const adminName = adminUser?.name || 'System Administrator';
+
+      const rawToken = crypto.randomBytes(32).toString('hex');
+      const newTokenHash = hashToken(rawToken);
+      const expiryHours = Number(env.INVITATION_EXPIRY_HOURS) || 72;
+      const newExpiresAt = new Date(Date.now() + expiryHours * 60 * 60 * 1000);
+      const invitationUrl = buildInvitationUrl(rawToken);
+
+      const prevWasTimeout = Boolean(invitation.emailLastError?.outcomeUnknown);
+      const attemptNumber = prevWasTimeout
+        ? (invitation.emailAttempt || 1)
+        : (invitation.emailAttempt || 0) + 1;
+      const idempotencyKey = `invitation:${invitation._id}:attempt:${attemptNumber}`;
+
+      const template = renderInvitationTemplate({
+        name: invitation.name,
+        role: invitation.role,
+        adminName,
+        invitationUrl,
+        expiresAt: newExpiresAt,
+      });
+
+      const providerResult = await emailProvider.send({
+        to: invitation.email,
+        subject: template.subject,
+        html: template.html,
+        text: template.text,
+        replyTo: env.EMAIL_REPLY_TO || undefined,
+        idempotencyKey,
+      });
+
+      if (providerResult.ok) {
+        await Invitation.updateOne(
+          { _id: invitation._id },
+          {
+            $set: {
+              tokenHash: newTokenHash,
+              expiresAt: newExpiresAt,
+              status: INVITATION_STATUS.PENDING,
+              emailDeliveryStatus: EMAIL_DELIVERY_STATUS.ACCEPTED,
+              emailProviderMessageId: providerResult.providerMessageId || null,
+              emailAttempt: attemptNumber,
+              lastSentAt: new Date(),
+              emailLastError: null,
+              emailLastEvent: null,
+              emailLastEventAt: null,
+            },
+            $inc: { resendCount: 1 },
+          }
+        );
+
+        await logAuditEvent({
+          actor: null,
+          action: AUDIT_ACTIONS.INVITATION_LINK_REQUESTED,
+          targetUser: { _id: user._id, email: user.email },
+          invitationId: invitation._id,
+          metadata: {
+            found: true,
+            outcome: 'SENT',
+            providerMessageId: providerResult.providerMessageId || null,
+          },
+          req,
+        });
+      } else {
+        invitation.emailDeliveryStatus = EMAIL_DELIVERY_STATUS.FAILED;
+        invitation.emailAttempt = attemptNumber;
+        invitation.emailLastError = {
+          code: providerResult.error?.code,
+          message: providerResult.error?.message,
+          at: new Date(),
+          outcomeUnknown: Boolean(providerResult.error?.outcomeUnknown),
+        };
+        await invitation.save();
+
+        await logAuditEvent({
+          actor: null,
+          action: AUDIT_ACTIONS.INVITATION_LINK_REQUESTED,
+          targetUser: { _id: user._id, email: user.email },
+          invitationId: invitation._id,
+          metadata: {
+            found: true,
+            outcome: providerResult.error?.code || 'EMAIL_FAILED',
+          },
+          req,
+        });
+      }
+    } finally {
+      await clearSendClaim(invitation._id);
+    }
+  } catch (err) {
+    logger.error('Error during self-service invitation link processing:', err.message);
+  }
 };
