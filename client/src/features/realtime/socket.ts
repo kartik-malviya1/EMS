@@ -47,12 +47,16 @@ export async function fetchSocketToken(): Promise<string | null> {
 }
 
 function getSocketUrl(): string {
-  if (import.meta.env.SOCKET_URL) {
-    return import.meta.env.SOCKET_URL;
+  const socketEnv =
+    import.meta.env.VITE_SOCKET_URL || import.meta.env.SOCKET_URL;
+  if (socketEnv) {
+    return socketEnv.endsWith("/") ? socketEnv.slice(0, -1) : socketEnv;
   }
-  if (import.meta.env.API_BASE_URL) {
+  const apiEnv =
+    import.meta.env.VITE_API_BASE_URL || import.meta.env.API_BASE_URL;
+  if (apiEnv) {
     try {
-      const parsed = new URL(import.meta.env.API_BASE_URL);
+      const parsed = new URL(apiEnv);
       return parsed.origin;
     } catch {
       // ignore

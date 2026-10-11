@@ -29,7 +29,8 @@ export const notifySessionExpiredOnce = () => {
 };
 
 export const getBaseUrl = (): string => {
-  const envUrl = import.meta.env.API_BASE_URL;
+  const envUrl =
+    import.meta.env.VITE_API_BASE_URL || import.meta.env.API_BASE_URL;
   if (envUrl) {
     return envUrl.endsWith("/") ? envUrl.slice(0, -1) : envUrl;
   }

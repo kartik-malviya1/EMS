@@ -21,6 +21,7 @@ customLogger.error = (msg, options) => {
 };
 
 export default defineConfig({
+  envPrefix: ['VITE_', 'API_', 'SOCKET_'],
   customLogger,
   plugins: [react(), tailwindcss()],
   resolve: {
