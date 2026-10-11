@@ -30,10 +30,21 @@ export const notifySessionExpiredOnce = () => {
 
 export const getBaseUrl = (): string => {
   const envUrl =
-    import.meta.env.VITE_API_BASE_URL || import.meta.env.API_BASE_URL;
+    import.meta.env.VITE_API_BASE_URL ||
+    import.meta.env.API_BASE_URL ||
+    import.meta.env.VITE_API_KEY_BASE ||
+    import.meta.env.API_KEY_BASE ||
+    import.meta.env.VITE_API_URL ||
+    import.meta.env.API_URL;
+
   if (envUrl) {
-    return envUrl.endsWith("/") ? envUrl.slice(0, -1) : envUrl;
+    let clean = envUrl.endsWith("/") ? envUrl.slice(0, -1) : envUrl;
+    if (!clean.endsWith("/api")) {
+      clean = `${clean}/api`;
+    }
+    return clean;
   }
+
   if (
     typeof window !== "undefined" &&
     (window.location.hostname === "localhost" ||
@@ -41,7 +52,8 @@ export const getBaseUrl = (): string => {
   ) {
     return `${window.location.origin}/api`;
   }
-  return "https://ems-server.onrender.com/api";
+
+  return "https://ems-server-wjey.onrender.com/api";
 };
 
 const baseQuery = fetchBaseQuery({

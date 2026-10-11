@@ -60,7 +60,12 @@ function getSocketUrl(): string {
     return socketEnv.endsWith("/") ? socketEnv.slice(0, -1) : socketEnv;
   }
   const apiEnv =
-    import.meta.env.VITE_API_BASE_URL || import.meta.env.API_BASE_URL;
+    import.meta.env.VITE_API_BASE_URL ||
+    import.meta.env.API_BASE_URL ||
+    import.meta.env.VITE_API_KEY_BASE ||
+    import.meta.env.API_KEY_BASE ||
+    import.meta.env.VITE_API_URL ||
+    import.meta.env.API_URL;
   if (apiEnv) {
     try {
       const parsed = new URL(apiEnv);
@@ -76,7 +81,7 @@ function getSocketUrl(): string {
   ) {
     return "http://localhost:5000";
   }
-  return "https://ems-server.onrender.com";
+  return "https://ems-server-wjey.onrender.com";
 }
 
 export async function connectSocket(): Promise<Socket | null> {
