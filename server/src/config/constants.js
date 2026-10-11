@@ -92,7 +92,6 @@ export const EMAIL_DELIVERY_STATUS = {
   PENDING: 'pending',
   ACCEPTED: 'accepted',
   FAILED: 'failed',
-  DEV_LINK: 'dev_link',
 };
 
 export const EMAIL_DELIVERY_STATUS_LIST = Object.values(EMAIL_DELIVERY_STATUS);
@@ -105,6 +104,8 @@ export const AUDIT_ACTIONS = {
   INVITATION_RESENT: 'invitation_resent',
   INVITATION_REVOKED: 'invitation_revoked',
   INVITATION_ACCEPTED: 'invitation_accepted',
+  INVITATION_LINK_REQUESTED: 'invitation_link_requested',
+  EMAIL_TEST_SENT: 'email_test_sent',
   ROLE_CHANGED: 'role_changed',
   MANAGER_CHANGED: 'manager_changed',
   ACCOUNT_SUSPENDED: 'account_suspended',

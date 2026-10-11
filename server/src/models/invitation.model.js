@@ -100,13 +100,17 @@ const invitationSchema = new mongoose.Schema(
       default: EMAIL_DELIVERY_STATUS.PENDING,
       index: true,
     },
-    emailMode: {
-      type: String,
-      enum: ['resend', 'development'],
-      default: 'development',
-    },
     emailProviderMessageId: {
       type: String,
+      default: null,
+      index: true,
+    },
+    emailLastEvent: {
+      type: String,
+      default: null,
+    },
+    emailLastEventAt: {
+      type: Date,
       default: null,
     },
     emailAttempt: {
