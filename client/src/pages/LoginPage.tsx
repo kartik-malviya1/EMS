@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Clock, AlertCircle, ArrowRight, Shield, User } from "lucide-react";
+import { Clock, AlertCircle } from "lucide-react";
 import {
   loginSchema,
   type LoginFormValues,
@@ -41,11 +41,6 @@ export const LoginPage: React.FC = () => {
       password: "",
     },
   });
-
-  const handlePortalSelect = (portal: PortalType) => {
-    setSelectedPortal(portal);
-    setServerError(null);
-  };
 
   const fillDemoCredentials = (role: "admin" | "manager" | "employee") => {
     setServerError(null);
@@ -400,9 +395,9 @@ export const LoginPage: React.FC = () => {
 
           {/* Footer Links */}
           <div className="space-y-2 text-center text-xs text-muted-foreground pt-4 border-t border-border/60">
-            {/* {authConfig?.publicRegistrationEnabled && (
+            {authConfig?.publicRegistrationEnabled && (
               <div>
-                New here?
+                New here?{" "}
                 <Link
                   to="/signup"
                   className="font-semibold text-primary hover:underline transition-colors"
@@ -410,7 +405,7 @@ export const LoginPage: React.FC = () => {
                   Create an account
                 </Link>
               </div>
-            )} */}
+            )}
             <div>
               Invited but didn't get the email?{" "}
               <Link

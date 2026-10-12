@@ -15,7 +15,6 @@ import {
   useSendAdminTestEmailMutation,
   useLazyGetMessageStatusQuery,
 } from '../../features/invitations/invitationsApi';
-import { useAppSelector } from '../../app/hooks';
 import { formatLastEvent } from '../../lib/formatLastEvent';
 import type { GeofenceSettings } from '../../types/models';
 import {
