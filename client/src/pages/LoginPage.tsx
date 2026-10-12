@@ -47,14 +47,20 @@ export const LoginPage: React.FC = () => {
     setServerError(null);
   };
 
-  const fillDemoCredentials = (portal: PortalType) => {
-    setSelectedPortal(portal);
-    if (portal === "admin") {
-      setValue("email", "demo.admin@example.com", { shouldValidate: true });
-      setValue("password", "DemoPassword123", { shouldValidate: true });
+  const fillDemoCredentials = (role: "admin" | "manager" | "employee") => {
+    setServerError(null);
+    if (role === "admin") {
+      setSelectedPortal("admin");
+      setValue("email", "admin@gmail.com", { shouldValidate: true });
+      setValue("password", "DemoPassword@123", { shouldValidate: true });
+    } else if (role === "manager") {
+      setSelectedPortal("employee");
+      setValue("email", "manager.sarah@gmail.com", { shouldValidate: true });
+      setValue("password", "DemoPassword@123", { shouldValidate: true });
     } else {
-      setValue("email", "alice.walker@example.com", { shouldValidate: true });
-      setValue("password", "DemoPassword123", { shouldValidate: true });
+      setSelectedPortal("employee");
+      setValue("email", "alice@gmail.com", { shouldValidate: true });
+      setValue("password", "DemoPassword@123", { shouldValidate: true });
     }
   };
 
@@ -185,7 +191,7 @@ export const LoginPage: React.FC = () => {
           </div>
 
           {/* Portal Selection Cards (matching ems-gs.vercel.app/login UX) */}
-          <div className="space-y-3">
+          {/* <div className="space-y-3">
             <button
               type="button"
               id="admin-portal-button"
@@ -261,26 +267,37 @@ export const LoginPage: React.FC = () => {
                 }`}
               />
             </button>
-          </div>
+          </div> */}
 
           {/* Quick Demo Fill Helper */}
           <div className="flex items-center justify-between px-1 text-xs">
-            <span className="text-muted-foreground">Quick test credentials:</span>
-            <div className="flex gap-2">
+            <span className="text-muted-foreground">Demo logins:</span>
+            <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => fillDemoCredentials("employee")}
+                id="demo-admin-btn"
+                onClick={() => fillDemoCredentials("admin")}
                 className="font-medium text-primary hover:underline cursor-pointer"
               >
-                Demo Employee
+                Admin
               </button>
               <span className="text-muted-foreground">&bull;</span>
               <button
                 type="button"
-                onClick={() => fillDemoCredentials("admin")}
+                id="demo-manager-btn"
+                onClick={() => fillDemoCredentials("manager")}
                 className="font-medium text-primary hover:underline cursor-pointer"
               >
-                Demo Admin
+                Manager
+              </button>
+              <span className="text-muted-foreground">&bull;</span>
+              <button
+                type="button"
+                id="demo-employee-btn"
+                onClick={() => fillDemoCredentials("employee")}
+                className="font-medium text-primary hover:underline cursor-pointer"
+              >
+                Employee
               </button>
             </div>
           </div>
@@ -378,9 +395,9 @@ export const LoginPage: React.FC = () => {
 
           {/* Footer Links */}
           <div className="space-y-2 text-center text-xs text-muted-foreground pt-4 border-t border-border/60">
-            {authConfig?.publicRegistrationEnabled && (
+            {/* {authConfig?.publicRegistrationEnabled && (
               <div>
-                New here?{" "}
+                New here?
                 <Link
                   to="/signup"
                   className="font-semibold text-primary hover:underline transition-colors"
@@ -388,7 +405,7 @@ export const LoginPage: React.FC = () => {
                   Create an account
                 </Link>
               </div>
-            )}
+            )} */}
             <div>
               Invited but didn't get the email?{" "}
               <Link

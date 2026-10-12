@@ -15,30 +15,85 @@ A full-stack, enterprise-grade Attendance Management System built with React 19,
 
 ## Demo Accounts (Evaluator Access)
 
-Pre-configured role accounts are documented below. Passwords are set by `DEMO_PASSWORD` (default: `DemoPassword123`) and `ADMIN_PASSWORD` (default: `AdminPassword123`):
+Pre-configured demo accounts for local development and assessment demonstrations:
 
-| Role         | Name                           | Email Address               | Password Source | Default Password  | Target Dashboard      |
-| :----------- | :----------------------------- | :-------------------------- | :-------------- | :---------------- | :-------------------- |
-| **Admin**    | Demo Admin                     | `admin@gmail.com`    | `DEMO_PASSWORD` | `DemoPassword@123` | `/admin/dashboard`    |
-| **Manager**  | Sarah Connor (Engineering Mgr) | `manager.sarah@gmail.com` | `DEMO_PASSWORD` | `DemoPassword@123` | `/manager/dashboard`  |
-| **Employee** | Alice Walker (Engineering)     | `alice@gmail.com`  | `DEMO_PASSWORD` | `DemoPassword@123` | `/employee/dashboard` |
+| Role         | Name                           | Email Address             | Demo Password      | Canonical Dashboard Route | Compatibility Alias Route |
+| :----------- | :----------------------------- | :------------------------ | :----------------- | :------------------------ | :------------------------ |
+| **Admin**    | Demo Admin                     | `admin@gmail.com`         | `DemoPassword@123` | `/admin`                  | `/admin/dashboard`        |
+| **Manager**  | Sarah Connor (Engineering Mgr) | `manager.sarah@gmail.com` | `DemoPassword@123` | `/manager`                | `/manager/dashboard`      |
+| **Employee** | Alice Walker (Engineering)     | `alice@gmail.com`         | `DemoPassword@123` | `/employee`               | `/employee/dashboard`     |
 
-> **Public Registration**: Public signup is enabled on the live production deployment (`ALLOW_PUBLIC_REGISTRATION=true`). Evaluators can also register new employee accounts directly at [/signup](https://ems-client-sand.vercel.app/signup).
+> [!IMPORTANT]
+> **Demo & Development Only**: These shared static credentials are strictly for local testing and evaluator demonstrations. The seeder includes an automated safety guard that refuses to run in `NODE_ENV=production`. Never use demo credentials or hardcoded passwords in a production environment.
 
-### Non-Destructive Database Seeding Commands (MongoDB Atlas)
+### Local Database Configuration & Idempotent Seeding
 
-If the production database lacks seeded accounts, execute the following commands locally against your remote Atlas database. These scripts are non-destructive (upsert/idempotent) and will never overwrite existing production records:
+1. **Configure Environment Variables**:
+   In `server/.env`, ensure your local or staging MongoDB connection string and JWT secret are configured:
 
-```bash
-# 1. Seed or synchronize the Administrator account
-cd server
-MONGODB_URI="<your-mongodb-atlas-uri>" ADMIN_EMAIL="admin@example.com" ADMIN_PASSWORD="AdminPassword123" npm run seed:admin
+   ```env
+   NODE_ENV=development
+   PORT=5000
+   MONGODB_URI=mongodb://localhost:27017/attendance_db
+   JWT_SECRET=your_super_secret_jwt_key_at_least_32_chars_long!
+   BUSINESS_TIMEZONE=Asia/Kolkata
+   CLIENT_ORIGIN=http://localhost:5173
+   ```
 
-# 2. Seed Demo Accounts (1 Admin, 2 Managers, 6 Employees, 14 days attendance)
-# Note: ALLOW_PROD_SEED=true and --allow-prod override the production safeguard
-cd server
-MONGODB_URI="<your-mongodb-atlas-uri>" DEMO_PASSWORD="DemoPassword123" ALLOW_PROD_SEED=true npm run seed:demo -- --allow-prod
-```
+2. **Run Idempotent Demo Seeding**:
+   From the `server` directory, execute the dedicated demo seeding command:
+
+   ```bash
+   npm run seed:demo-accounts
+   ```
+
+   **Console Summary Output**:
+
+   ```text
+   Demo account seeding completed.
+
+   Admin:    active
+   Manager:  active
+   Employee: active
+   Team relationship: Employee assigned to Manager
+   Password verification: passed for all three accounts
+   Dashboard route configuration: verified
+   ```
+
+### Organizational Relationship & Scoping
+
+- **Manager-Employee Hierarchy**: Alice Walker is linked to Sarah Connor via `managerId: Sarah._id` (using genuine MongoDB ObjectIds).
+- **Team Discovery**: When Sarah logs in and accesses `/manager` or calls `GET /api/users/team`, Alice is discovered via `listTeamMembers(Sarah._id)`. All team attendance, verification, overtime, and leave workflows honor this relationship through `scope.service.js`.
+- **Administrative Independence**: Demo Admin has `managerId: null` and retains system-wide administrative oversight across all users, logs, and settings.
+- **Admin Workforce Restriction**: Admin accounts cannot punch in or punch out, cannot receive personal shift records, and have zero attendance records (`Attendance.countDocuments({ employeeId: Admin._id }) === 0`).
+
+### Seeded Development Attendance & Dashboard History
+
+The seeder populates bounded, realistic data so dashboards can be immediately evaluated:
+
+- **Alice Walker (Employee)**:
+  - **Today (Day 0)**: Live in-progress shift (punched in at 09:15 AM, active session displayed on dashboard).
+  - **Yesterday (Day -1)**: Completed shift (500 mins / 8h 20m), verified **Valid** by Sarah Connor.
+  - **Day -2**: Completed shift (540 mins) with **Approved Overtime** (60 mins, reviewed & approved by Sarah).
+  - **Day -3**: Completed shift (570 mins) with **Pending Overtime** (90 mins, awaiting review).
+  - **Day -4**: Incomplete shift (360 mins / 6h, planned half-day with manager notes).
+  - **Day -5**: Completed shift with **Invalid Verification** (location discrepancy noted outside geofence).
+  - **Day -6**: Missed shift (auto-closed by system).
+  - **Notifications**: Overtime approval notification and attendance verification notice.
+- **Sarah Connor (Manager)**:
+  - Personal completed shift history for personal attendance views (`/employee`).
+  - Pending overtime request notification from Alice.
+- **Demo Admin**:
+  - Zero attendance records. Administrative access only.
+
+### Safe Re-Runs & Idempotency
+
+The script is safe to run multiple times:
+
+- Locates accounts by normalized email addresses.
+- Preserves existing MongoDB ObjectIds (`_id`) and relationships.
+- Does not create duplicate users, duplicate employee IDs, or duplicate attendance records (keyed by `{ employeeId, workDate }`).
+- Reconciles active statuses (`accountStatus: "active"`, `isActive: true`) and validates password comparison.
 
 ---
 
@@ -122,22 +177,21 @@ graph TB
 
 ## Requirements Coverage & Audit Matrix
 
-| # | Requirement | Status | Where to Find It | Verification Evidence & Notes |
-| :-: | :--- | :---: | :--- | :--- |
-| **1** | **Auth (Secure Login & Signup, RBAC, Protected Routes)** | `DONE` | `server/src/routes/auth.routes.js`<br>`client/src/routes/ProtectedRoute.tsx`<br>`client/src/pages/LoginPage.tsx` | Verified live: public signup creates employees (HTTP 201), JWT cookies set with `HttpOnly; SameSite=Lax; Secure`. Invalid credentials yield generic 401. RBAC enforces role checks (403). `ProtectedRoute` preserves redirect location state. All 21 auth tests pass. |
-| **2** | **Attendance (Punch In/Out, Live Selfie, Geolocation, Stored Data)** | `DONE` | `server/src/routes/attendance.routes.js`<br>`client/src/components/employee/PunchCard.tsx`<br>`client/src/components/employee/CameraCapture.tsx` | Verified: 0 occurrences of `<input type="file">`. Live camera stream drawn to `<canvas>` (JPEG 0.8). Server validates coordinates & accuracy. Stored: `punchIn.at`, `punchOut.at`, `location`, `workedMinutes`, and Cloudinary private selfie URLs. All 24 attendance tests pass. |
-| **3** | **Working Hours (8h Standard Shift: Completed vs Incomplete)** | `DONE` | `server/src/services/attendance.service.js`<br>`server/src/utils/time.js`<br>`client/src/components/common/StatusBadge.tsx` | Tested boundary conditions: 479 min &rarr; `incomplete`, 480 min &rarr; `completed`, 481 min &rarr; `completed`. Status badges render `Completed (8h+)` and `Incomplete (<8h)` with WCAG-compliant colors. All tests in `workingHours.test.js` pass. |
-| **4** | **Overtime (Employee Request, Manager/Admin Review, Visibility)** | `DONE` | `server/src/routes/overtime.routes.js`<br>`client/src/components/employee/OvertimeModal.tsx`<br>`client/src/components/manager/OvertimeReviewDialog.tsx` | Verified: Employees can request overtime only on completed shifts (&ge;480 min). Scoped review queue (`/api/overtime/pending`). Managers approve/reject assigned team requests; Admins review system-wide. Overtime status is visible in employee history and management dashboards. |
-| **5** | **Dashboards (Employee, Manager, Admin Views)** | `DONE` | `server/src/controllers/dashboard.controller.js`<br>`client/src/pages/employee/`<br>`client/src/pages/manager/`<br>`client/src/pages/admin/` | Verified: `GET /api/dashboard/summary` dynamically returns role-scoped stats. Employee dashboard displays personal attendance, live ticking digital clock, and overtime tracking. Manager dashboard displays team attendance and pending reviews. Admin dashboard displays all users and system-wide attendance. |
-| **6** | **Attendance Validation (Selfie Viewing, Valid/Invalid, Remarks)** | `DONE` | `server/src/routes/attendance.routes.js`<br>`client/src/components/manager/AttendanceReviewDialog.tsx` | Verified: Managers and Admins can view employee selfies via authorized streaming (`/api/attendance/:id/selfies/:kind`). Marking invalid strictly requires &ge; 5 characters remarks. History logged in `verification.history`. Review outcome badges are visible to employee and in reports. |
-| **7** | **Reports (Daily Reports, Scoped Access, Formats)** | `DEVIATION` | `server/src/services/report.service.js`<br>`server/src/routes/report.routes.js`<br>`client/src/pages/reports/ReportsPage.tsx` | **Deliberate Design Deviation**: The assignment lists "Selfie" in reports. To keep exported reports performant, printable (landscape A4 PDF / Excel), and privacy-preserving, reports display the attendance validity outcome (Valid / Invalid / Pending review) rather than embedding raw image thumbnails, while full selfies remain accessible on-demand in the validation dialog via authenticated backend streaming (`/api/attendance/:id/selfies/:kind`). Scoping verified: Employee (own records), Manager (assigned team only), Admin (all records). |
-| **8** | **Good to Have (Filters, Pagination, UX)** | `DONE` | `server/src/services/report.service.js`<br>`client/src/components/common/Pagination.tsx`<br>`client/src/pages/reports/ReportsPage.tsx` | Verified: Server-side pagination (`page`, `limit`) and filters (date range `from`/`to`, `userId`, `role`) implemented on reports, attendance history, users directory, and notifications. Loading skeletons, empty states, and error alerts present. |
-| **9** | **Bonus Features (Geofencing, Notifications, Socket.IO, Dark Mode, Exports)** | `DONE` | `server/src/services/geofence.service.js`<br>`server/src/socket/index.js`<br>`server/src/services/report.service.js`<br>`client/src/features/theme/` | Verified end-to-end: Geofence validates coordinates against office coords (Haversine formula, 422 if outside); Idempotent cron jobs generate missed shift alerts; Socket.IO syncs live updates across tabs; Dark mode toggle with persistent local storage; Multi-sheet Excel and A4 landscape PDF exports with metric cards. |
-| **10** | **Tech Stack (React 19 + Vite, RTK Query, Node 20+, Express 5, Mongoose, Morgan)** | `DONE` | `client/package.json`<br>`server/package.json`<br>`server/src/app.js` | Verified active dependencies and runtime. Morgan request logging active in non-test environments (`app.use(morgan(morganFormat))`). MongoDB Mongoose schemas with strict types. RTK Query handles all client REST data fetching with cache tags. |
-| **11** | **Deployment (Vercel Frontend, Render Backend)** | `DONE` | `client/vercel.json`<br>`https://ems-client-sand.vercel.app`<br>`https://ems-server-wjey.onrender.com` | Verified live: Both frontend and backend responding HTTP 200 on `/api/health`. Vercel proxies `/api/*` to Render with same-origin cookie preservation. Public signup tested live. |
-| **12** | **Submission & Hygiene (Public GitHub Repo, Clean Commits, No Secrets)** | `DONE` | Repository root<br>`README.md`<br>`.gitignore` | Verified: Public GitHub repository with zero tracked secrets (verified via git history scan). Correct `.gitignore`. Committed lockfiles. Node engine requirement set (`>=20.0.0`). |
-| **13** | **Evaluation Criteria Quick Pass (Core Flows, Error Handling, Structure)** | `DONE` | `server/src/middleware/errorHandler.js`<br>`server/src/validators/`<br>`client/src/pages/` | Verified: Error handling and Zod validation tested with invalid payloads on 5 endpoints. Clean modular separation across controllers, services, models, validators, and frontend slices. Clear loading/empty/error states on all primary pages. |
-
+|   #    | Requirement                                                                        |   Status    | Where to Find It                                                                                                                                         | Verification Evidence & Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| :----: | :--------------------------------------------------------------------------------- | :---------: | :------------------------------------------------------------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **1**  | **Auth (Secure Login & Signup, RBAC, Protected Routes)**                           |   `DONE`    | `server/src/routes/auth.routes.js`<br>`client/src/routes/ProtectedRoute.tsx`<br>`client/src/pages/LoginPage.tsx`                                         | Verified live: public signup creates employees (HTTP 201), JWT cookies set with `HttpOnly; SameSite=Lax; Secure`. Invalid credentials yield generic 401. RBAC enforces role checks (403). `ProtectedRoute` preserves redirect location state. All 21 auth tests pass.                                                                                                                                                                                                                                                                                        |
+| **2**  | **Attendance (Punch In/Out, Live Selfie, Geolocation, Stored Data)**               |   `DONE`    | `server/src/routes/attendance.routes.js`<br>`client/src/components/employee/PunchCard.tsx`<br>`client/src/components/employee/CameraCapture.tsx`         | Verified: 0 occurrences of `<input type="file">`. Live camera stream drawn to `<canvas>` (JPEG 0.8). Server validates coordinates & accuracy. Stored: `punchIn.at`, `punchOut.at`, `location`, `workedMinutes`, and Cloudinary private selfie URLs. All 24 attendance tests pass.                                                                                                                                                                                                                                                                            |
+| **3**  | **Working Hours (8h Standard Shift: Completed vs Incomplete)**                     |   `DONE`    | `server/src/services/attendance.service.js`<br>`server/src/utils/time.js`<br>`client/src/components/common/StatusBadge.tsx`                              | Tested boundary conditions: 479 min &rarr; `incomplete`, 480 min &rarr; `completed`, 481 min &rarr; `completed`. Status badges render `Completed (8h+)` and `Incomplete (<8h)` with WCAG-compliant colors. All tests in `workingHours.test.js` pass.                                                                                                                                                                                                                                                                                                         |
+| **4**  | **Overtime (Employee Request, Manager/Admin Review, Visibility)**                  |   `DONE`    | `server/src/routes/overtime.routes.js`<br>`client/src/components/employee/OvertimeModal.tsx`<br>`client/src/components/manager/OvertimeReviewDialog.tsx` | Verified: Employees can request overtime only on completed shifts (&ge;480 min). Scoped review queue (`/api/overtime/pending`). Managers approve/reject assigned team requests; Admins review system-wide. Overtime status is visible in employee history and management dashboards.                                                                                                                                                                                                                                                                         |
+| **5**  | **Dashboards (Employee, Manager, Admin Views)**                                    |   `DONE`    | `server/src/controllers/dashboard.controller.js`<br>`client/src/pages/employee/`<br>`client/src/pages/manager/`<br>`client/src/pages/admin/`             | Verified: `GET /api/dashboard/summary` dynamically returns role-scoped stats. Employee dashboard displays personal attendance, live ticking digital clock, and overtime tracking. Manager dashboard displays team attendance and pending reviews. Admin dashboard displays all users and system-wide attendance.                                                                                                                                                                                                                                             |
+| **6**  | **Attendance Validation (Selfie Viewing, Valid/Invalid, Remarks)**                 |   `DONE`    | `server/src/routes/attendance.routes.js`<br>`client/src/components/manager/AttendanceReviewDialog.tsx`                                                   | Verified: Managers and Admins can view employee selfies via authorized streaming (`/api/attendance/:id/selfies/:kind`). Marking invalid strictly requires &ge; 5 characters remarks. History logged in `verification.history`. Review outcome badges are visible to employee and in reports.                                                                                                                                                                                                                                                                 |
+| **7**  | **Reports (Daily Reports, Scoped Access, Formats)**                                | `DEVIATION` | `server/src/services/report.service.js`<br>`server/src/routes/report.routes.js`<br>`client/src/pages/reports/ReportsPage.tsx`                            | **Deliberate Design Deviation**: The assignment lists "Selfie" in reports. To keep exported reports performant, printable (landscape A4 PDF / Excel), and privacy-preserving, reports display the attendance validity outcome (Valid / Invalid / Pending review) rather than embedding raw image thumbnails, while full selfies remain accessible on-demand in the validation dialog via authenticated backend streaming (`/api/attendance/:id/selfies/:kind`). Scoping verified: Employee (own records), Manager (assigned team only), Admin (all records). |
+| **8**  | **Good to Have (Filters, Pagination, UX)**                                         |   `DONE`    | `server/src/services/report.service.js`<br>`client/src/components/common/Pagination.tsx`<br>`client/src/pages/reports/ReportsPage.tsx`                   | Verified: Server-side pagination (`page`, `limit`) and filters (date range `from`/`to`, `userId`, `role`) implemented on reports, attendance history, users directory, and notifications. Loading skeletons, empty states, and error alerts present.                                                                                                                                                                                                                                                                                                         |
+| **9**  | **Bonus Features (Geofencing, Notifications, Socket.IO, Dark Mode, Exports)**      |   `DONE`    | `server/src/services/geofence.service.js`<br>`server/src/socket/index.js`<br>`server/src/services/report.service.js`<br>`client/src/features/theme/`     | Verified end-to-end: Geofence validates coordinates against office coords (Haversine formula, 422 if outside); Idempotent cron jobs generate missed shift alerts; Socket.IO syncs live updates across tabs; Dark mode toggle with persistent local storage; Multi-sheet Excel and A4 landscape PDF exports with metric cards.                                                                                                                                                                                                                                |
+| **10** | **Tech Stack (React 19 + Vite, RTK Query, Node 20+, Express 5, Mongoose, Morgan)** |   `DONE`    | `client/package.json`<br>`server/package.json`<br>`server/src/app.js`                                                                                    | Verified active dependencies and runtime. Morgan request logging active in non-test environments (`app.use(morgan(morganFormat))`). MongoDB Mongoose schemas with strict types. RTK Query handles all client REST data fetching with cache tags.                                                                                                                                                                                                                                                                                                             |
+| **11** | **Deployment (Vercel Frontend, Render Backend)**                                   |   `DONE`    | `client/vercel.json`<br>`https://ems-client-sand.vercel.app`<br>`https://ems-server-wjey.onrender.com`                                                   | Verified live: Both frontend and backend responding HTTP 200 on `/api/health`. Vercel proxies `/api/*` to Render with same-origin cookie preservation. Public signup tested live.                                                                                                                                                                                                                                                                                                                                                                            |
+| **12** | **Submission & Hygiene (Public GitHub Repo, Clean Commits, No Secrets)**           |   `DONE`    | Repository root<br>`README.md`<br>`.gitignore`                                                                                                           | Verified: Public GitHub repository with zero tracked secrets (verified via git history scan). Correct `.gitignore`. Committed lockfiles. Node engine requirement set (`>=20.0.0`).                                                                                                                                                                                                                                                                                                                                                                           |
+| **13** | **Evaluation Criteria Quick Pass (Core Flows, Error Handling, Structure)**         |   `DONE`    | `server/src/middleware/errorHandler.js`<br>`server/src/validators/`<br>`client/src/pages/`                                                               | Verified: Error handling and Zod validation tested with invalid payloads on 5 endpoints. Clean modular separation across controllers, services, models, validators, and frontend slices. Clear loading/empty/error states on all primary pages.                                                                                                                                                                                                                                                                                                              |
 
 ---
 
