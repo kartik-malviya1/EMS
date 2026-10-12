@@ -58,11 +58,11 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
           <span
             data-testid="badge-working-in_progress"
             className={cn(
-              'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 dark:border-amber-800',
+              'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 border border-amber-200 dark:border-amber-800/70 shadow-xs',
               className
             )}
           >
-            <Clock className="w-3.5 h-3.5 animate-pulse" />
+            <Clock className="w-3.5 h-3.5 animate-pulse text-amber-600 dark:text-amber-400" />
             <span>In Progress</span>
           </span>
         );
@@ -71,11 +71,11 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
           <span
             data-testid="badge-working-completed"
             className={cn(
-              'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800',
+              'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/70 shadow-xs',
               className
             )}
           >
-            <CheckCircle2 className="w-3.5 h-3.5" />
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
             <span>Completed (8h+)</span>
           </span>
         );
@@ -84,11 +84,11 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
           <span
             data-testid="badge-working-incomplete"
             className={cn(
-              'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-orange-100 text-orange-800 dark:bg-orange-950/60 dark:text-orange-300 border border-orange-300 dark:border-orange-800',
+              'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-orange-50 text-orange-800 dark:bg-orange-950/50 dark:text-orange-300 border border-orange-200 dark:border-orange-800/70 shadow-xs',
               className
             )}
           >
-            <AlertTriangle className="w-3.5 h-3.5" />
+            <AlertTriangle className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />
             <span>Incomplete (&lt;8h)</span>
           </span>
         );
@@ -97,11 +97,11 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
           <span
             data-testid="badge-working-missed"
             className={cn(
-              'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-300 dark:border-rose-800',
+              'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-800 dark:bg-rose-950/50 dark:text-rose-300 border border-rose-200 dark:border-rose-800/70 shadow-xs',
               className
             )}
           >
-            <XCircle className="w-3.5 h-3.5" />
+            <XCircle className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
             <span>Missed Shift</span>
           </span>
         );
@@ -123,11 +123,11 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
           <span
             data-testid="badge-verification-valid"
             className={cn(
-              'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800',
+              'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/70 shadow-xs',
               className
             )}
           >
-            <ShieldCheck className="w-3.5 h-3.5" />
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
             <span>Valid</span>
           </span>
         );
@@ -136,11 +136,11 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
           <span
             data-testid="badge-verification-invalid"
             className={cn(
-              'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-300 dark:border-rose-800',
+              'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-800 dark:bg-rose-950/50 dark:text-rose-300 border border-rose-200 dark:border-rose-800/70 shadow-xs',
               className
             )}
           >
-            <ShieldAlert className="w-3.5 h-3.5" />
+            <ShieldAlert className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
             <span>Invalid</span>
           </span>
         );
@@ -150,11 +150,11 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
           <span
             data-testid="badge-verification-pending"
             className={cn(
-              'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 dark:border-amber-800',
+              'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 border border-amber-200 dark:border-amber-800/70 shadow-xs',
               className
             )}
           >
-            <Clock className="w-3.5 h-3.5" />
+            <Clock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
             <span>Pending Review</span>
           </span>
         );
@@ -169,11 +169,11 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
           <span
             data-testid="badge-overtime-approved"
             className={cn(
-              'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800',
+              'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/70 shadow-xs',
               className
             )}
           >
-            <CheckCircle2 className="w-3.5 h-3.5" />
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
             <span>OT Approved</span>
           </span>
         );
@@ -182,11 +182,11 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
           <span
             data-testid="badge-overtime-rejected"
             className={cn(
-              'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-300 dark:border-rose-800',
+              'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-800 dark:bg-rose-950/50 dark:text-rose-300 border border-rose-200 dark:border-rose-800/70 shadow-xs',
               className
             )}
           >
-            <XCircle className="w-3.5 h-3.5" />
+            <XCircle className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
             <span>OT Rejected</span>
           </span>
         );
@@ -195,11 +195,11 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
           <span
             data-testid="badge-overtime-pending"
             className={cn(
-              'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 dark:border-amber-800',
+              'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 border border-amber-200 dark:border-amber-800/70 shadow-xs',
               className
             )}
           >
-            <Clock className="w-3.5 h-3.5" />
+            <Clock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
             <span>OT Pending</span>
           </span>
         );
@@ -210,7 +210,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
           <span
             data-testid="badge-overtime-none"
             className={cn(
-              'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground',
+              'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100/80 text-slate-600 dark:bg-slate-900/60 dark:text-slate-400 border border-slate-200/80 dark:border-slate-800',
               className
             )}
           >

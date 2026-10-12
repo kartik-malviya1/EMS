@@ -8,6 +8,7 @@ import { ErrorState } from "../../components/common/ErrorState";
 import { AttendanceReviewDialog } from "../../components/review/AttendanceReviewDialog";
 import { EmployeeCell } from "../../components/common/EmployeeCell";
 import { AttendanceTimeline } from "../../components/common/AttendanceTimeline";
+import { formatDate } from "../../lib/labels";
 import { useGetTeamAttendanceQuery } from "../../features/attendance/attendanceApi";
 import type { Attendance, User } from "../../types/models";
 import { ShieldCheck, ChevronLeft, ChevronRight, MapPin } from "lucide-react";
@@ -111,8 +112,8 @@ export const ManagerReviewPage: React.FC = () => {
                         <td className="py-2.5 px-4 align-middle">
                           <EmployeeCell employee={emp} />
                         </td>
-                        <td className="py-2.5 px-4 align-middle font-mono font-semibold text-foreground whitespace-nowrap">
-                          {rec.workDate}
+                        <td className="py-2.5 px-4 align-middle text-xs font-semibold text-foreground whitespace-nowrap">
+                          {formatDate(rec.workDate)}
                         </td>
                         <td className="py-2.5 px-4 align-middle">
                           <AttendanceTimeline

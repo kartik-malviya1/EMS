@@ -41,13 +41,11 @@ import { toast } from 'sonner';
 import { getApiErrorMessage } from '../../lib/utils';
 
 export const EmailDeliveryCard: React.FC = () => {
-  const currentUser = useAppSelector((state) => state.auth.user);
   const { data: emailStatus } = useGetEmailStatusQuery();
   const [sendTestEmail, { isLoading: isSendingTest }] = useSendAdminTestEmailMutation();
   const [fetchMessageStatus, { isFetching: isCheckingStatus }] = useLazyGetMessageStatusQuery();
 
-  const [recipientInput, setRecipientInput] = useState<string | null>(null);
-  const recipient = recipientInput !== null ? recipientInput : (currentUser?.email || '');
+  const [recipient, setRecipient] = useState<string>('hre@dtableanalytics.com');
 
   // Result and Polling State
   const [testResult, setTestResult] = useState<{
@@ -259,8 +257,8 @@ export const EmailDeliveryCard: React.FC = () => {
                 id="test-email-recipient"
                 type="email"
                 value={recipient}
-                onChange={(e) => setRecipientInput(e.target.value)}
-                placeholder="admin@company.com"
+                onChange={(e) => setRecipient(e.target.value)}
+                placeholder="hre@dtableanalytics.com"
                 required
                 className="h-9.5 rounded-xl text-xs bg-background"
                 disabled={isSendingTest}

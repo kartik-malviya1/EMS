@@ -9,6 +9,7 @@ import { EmptyState } from '../../components/common/EmptyState';
 import { ErrorState } from '../../components/common/ErrorState';
 import { EmployeeCell } from '../../components/common/EmployeeCell';
 import { AttendanceTimeline } from '../../components/common/AttendanceTimeline';
+import { formatDate } from '../../lib/labels';
 import { ReportVisualizations } from '../../components/reports/ReportVisualizations';
 import {
   useGetDailyReportQuery,
@@ -378,8 +379,8 @@ export const AdminReportsPage: React.FC = () => {
                           }
                         />
                       </td>
-                      <td className="py-3.5 px-4 font-semibold text-foreground whitespace-nowrap">
-                        {row.workDate}
+                      <td className="py-3.5 px-4 font-semibold text-foreground whitespace-nowrap text-xs">
+                        {formatDate(row.workDate)}
                       </td>
                       <td className="py-3.5 px-4">
                         <AttendanceTimeline

@@ -11,6 +11,7 @@ import { AttendanceReviewDialog } from '../../components/review/AttendanceReview
 import { TabNavigation, type TabItem } from '../../components/common/TabNavigation';
 import { EmployeeCell } from '../../components/common/EmployeeCell';
 import { AttendanceTimeline } from '../../components/common/AttendanceTimeline';
+import { formatDate } from '../../lib/labels';
 import { useGetAllAttendanceQuery } from '../../features/attendance/attendanceApi';
 import type {
   Attendance,
@@ -249,14 +250,14 @@ export const AdminAttendancePage: React.FC = () => {
               <div className="overflow-x-auto">
                 <table className="w-full text-xs text-left table-fixed min-w-[1020px] border-collapse">
                   <colgroup>
-                    <col className="w-[230px]" />
-                    <col className="w-[100px]" />
-                    <col className="w-[110px]" />
+                    <col className="w-[260px]" />
+                    <col className="w-[95px]" />
+                    <col className="w-[125px]" />
                     <col className="w-[170px]" />
-                    <col className="w-[140px]" />
+                    <col className="w-[145px]" />
                     <col className="w-[120px]" />
                     <col className="w-[120px]" />
-                    <col className="w-[90px]" />
+                    <col className="w-[85px]" />
                   </colgroup>
                   <thead className="bg-muted/40 border-b border-border/60 text-muted-foreground uppercase tracking-wider font-bold text-[11px] h-11">
                     <tr>
@@ -278,7 +279,7 @@ export const AdminAttendancePage: React.FC = () => {
                           ? (rec.employeeId as User)
                           : null;
 
-                      return (
+                       return (
                         <tr
                           key={rec.id || rec._id}
                           className="hover:bg-muted/30 transition-colors h-14"
@@ -291,8 +292,8 @@ export const AdminAttendancePage: React.FC = () => {
                               {emp?.role || 'employee'}
                             </span>
                           </td>
-                          <td className="py-2.5 px-4 align-middle font-mono font-semibold text-foreground whitespace-nowrap">
-                            {rec.workDate}
+                          <td className="py-2.5 px-4 align-middle text-xs font-semibold text-foreground whitespace-nowrap">
+                            {formatDate(rec.workDate)}
                           </td>
                           <td className="py-2.5 px-4 align-middle">
                             <AttendanceTimeline

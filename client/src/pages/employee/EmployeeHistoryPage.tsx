@@ -15,6 +15,7 @@ import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Card, CardContent } from '../../components/ui/card';
 import { AttendanceTimeline } from '../../components/common/AttendanceTimeline';
+import { formatDate } from '../../lib/labels';
 import { useGetMyAttendanceHistoryQuery } from '../../features/attendance/attendanceApi';
 import type { Attendance } from '../../types/models';
 
@@ -67,9 +68,9 @@ export const EmployeeHistoryPage: React.FC = () => {
     {
       header: 'Work Date',
       cell: (row) => (
-        <div className="flex items-center gap-2 font-semibold whitespace-nowrap">
+        <div className="flex items-center gap-2 font-semibold whitespace-nowrap text-xs text-foreground">
           <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
-          <span>{row.workDate}</span>
+          <span>{formatDate(row.workDate)}</span>
         </div>
       ),
     },

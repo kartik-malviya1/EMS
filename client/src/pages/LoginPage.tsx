@@ -147,10 +147,13 @@ export const LoginPage: React.FC = () => {
         {/* Center Headline */}
         <div className="relative z-10 space-y-4 my-auto max-w-lg">
           <h1 className="text-4xl lg:text-5xl font-extrabold text-white tracking-tight leading-[1.15]">
-            Attendance<br />Management System
+            Attendance
+            <br />
+            Management System
           </h1>
           <p className="text-slate-300/80 text-sm lg:text-base leading-relaxed">
-            Streamline your workforce operations, track attendance in real time, manage overtime workflows, and empower your team securely.
+            Streamline your workforce operations, track attendance in real time,
+            manage overtime workflows, and empower your team securely.
           </p>
         </div>
 
@@ -362,7 +365,9 @@ export const LoginPage: React.FC = () => {
                 autoComplete="current-password"
                 placeholder="••••••••"
                 aria-invalid={Boolean(errors.password)}
-                aria-describedby={errors.password ? "password-error" : undefined}
+                aria-describedby={
+                  errors.password ? "password-error" : undefined
+                }
                 className="h-10.5 rounded-xl bg-background border-border/80 focus-visible:ring-primary/30"
                 {...register("password")}
               />

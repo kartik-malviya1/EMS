@@ -11,6 +11,7 @@ import { AttendanceReviewDialog } from '../../components/review/AttendanceReview
 import { TabNavigation, type TabItem } from '../../components/common/TabNavigation';
 import { EmployeeCell } from '../../components/common/EmployeeCell';
 import { AttendanceTimeline } from '../../components/common/AttendanceTimeline';
+import { formatDate } from '../../lib/labels';
 import { useGetTeamAttendanceQuery } from '../../features/attendance/attendanceApi';
 import { useGetTeamUsersQuery } from '../../features/users/usersApi';
 import type {
@@ -235,12 +236,12 @@ export const ManagerTeamAttendancePage: React.FC = () => {
               <div className="overflow-x-auto">
                 <table className="w-full text-xs text-left table-fixed min-w-[900px] border-collapse">
                   <colgroup>
-                    <col className="w-[240px]" />
-                    <col className="w-[110px]" />
+                    <col className="w-[260px]" />
+                    <col className="w-[125px]" />
                     <col className="w-[180px]" />
                     <col className="w-[130px]" />
                     <col className="w-[130px]" />
-                    <col className="w-[90px]" />
+                    <col className="w-[85px]" />
                   </colgroup>
                   <thead className="bg-muted/40 border-b border-border/60 text-muted-foreground uppercase tracking-wider font-bold text-[11px] h-11">
                     <tr>
@@ -268,8 +269,8 @@ export const ManagerTeamAttendancePage: React.FC = () => {
                           <td className="py-2.5 px-4 align-middle">
                             <EmployeeCell employee={emp} />
                           </td>
-                          <td className="py-2.5 px-4 align-middle font-mono font-semibold text-foreground whitespace-nowrap">
-                            {rec.workDate}
+                          <td className="py-2.5 px-4 align-middle text-xs font-semibold text-foreground whitespace-nowrap">
+                            {formatDate(rec.workDate)}
                           </td>
                           <td className="py-2.5 px-4 align-middle">
                             <AttendanceTimeline

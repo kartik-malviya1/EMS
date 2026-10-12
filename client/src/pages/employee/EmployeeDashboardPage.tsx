@@ -19,6 +19,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/ca
 import { TableSkeleton } from '../../components/common/Skeletons';
 import { EmptyState } from '../../components/common/EmptyState';
 import { AttendanceTimeline } from '../../components/common/AttendanceTimeline';
+import { formatDate } from '../../lib/labels';
 import {
   useGetTodayAttendanceQuery,
   useGetMyAttendanceHistoryQuery,
@@ -194,10 +195,10 @@ export const EmployeeDashboardPage: React.FC = () => {
                           className="hover:bg-muted/20 transition-colors"
                         >
                           {/* Date */}
-                          <td className="px-4 py-3 font-semibold whitespace-nowrap">
+                          <td className="px-4 py-3 font-semibold whitespace-nowrap text-xs text-foreground">
                             <div className="flex items-center gap-1.5">
                               <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
-                              <span>{record.workDate}</span>
+                              <span>{formatDate(record.workDate)}</span>
                             </div>
                           </td>
 

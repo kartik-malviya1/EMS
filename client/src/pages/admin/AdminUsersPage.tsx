@@ -338,17 +338,21 @@ export const AdminUsersPage: React.FC = () => {
                             </td>
                             <td className="py-2.5 px-4 align-middle">{renderAccountStatusBadge(u.accountStatus, u.isActive)}</td>
                             <td className="py-2.5 px-4 align-middle text-right">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-8 px-3 rounded-xl text-xs font-semibold hover:border-primary hover:text-primary transition-all gap-1.5"
-                                onClick={() => {
-                                  setSelectedUser(u);
-                                  setEditDialogOpen(true);
-                                }}
-                              >
-                                <UserCog className="w-3.5 h-3.5" /> Edit
-                              </Button>
+                              {u.role !== 'admin' ? (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-8 px-3 rounded-xl text-xs font-semibold hover:border-primary hover:text-primary transition-all gap-1.5"
+                                  onClick={() => {
+                                    setSelectedUser(u);
+                                    setEditDialogOpen(true);
+                                  }}
+                                >
+                                  <UserCog className="w-3.5 h-3.5" /> Edit
+                                </Button>
+                              ) : (
+                                <span className="text-muted-foreground/40 text-xs select-none pr-3">—</span>
+                              )}
                             </td>
                           </tr>
                         );

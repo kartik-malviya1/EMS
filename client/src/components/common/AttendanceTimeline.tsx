@@ -45,26 +45,28 @@ export const AttendanceTimeline: React.FC<AttendanceTimelineProps> = ({
   const duration = formatDuration(workedMinutes);
 
   if (!inTime && !outTime) {
-    return <span className="text-muted-foreground/60 font-mono text-xs">—</span>;
+    return <span className="text-muted-foreground/50 text-xs select-none">—</span>;
   }
 
   return (
     <div className={cn('flex flex-col justify-center leading-tight py-0.5', className)}>
-      <div className="flex items-center gap-1.5 font-mono text-xs font-semibold tracking-tight text-foreground">
-        <span className={inTime ? 'text-foreground' : 'text-muted-foreground/50'}>
+      <div className="flex items-center gap-1.5 text-xs font-medium tabular-nums text-foreground">
+        <span className={inTime ? 'font-semibold text-foreground' : 'text-muted-foreground/50'}>
           {inTime || '—'}
         </span>
-        <span className="text-muted-foreground/50 font-sans text-[11px] font-normal select-none">
+        <span className="text-muted-foreground/40 text-[11px] font-normal select-none">
           →
         </span>
-        <span className={outTime ? 'text-foreground' : 'text-muted-foreground/50'}>
+        <span className={outTime ? 'font-semibold text-foreground' : 'text-muted-foreground/50'}>
           {outTime || '—'}
         </span>
       </div>
 
-      <div className="flex items-center gap-1 text-[11px] text-muted-foreground font-sans mt-0.5">
+      <div className="flex items-center gap-1 text-[11px] text-muted-foreground mt-0.5">
         <Clock className="w-3 h-3 text-muted-foreground/70 shrink-0" />
-        <span>{duration || (workingStatus === 'in_progress' ? 'Active shift' : '0h 00m')}</span>
+        <span className={workingStatus === 'in_progress' ? 'text-amber-700 dark:text-amber-400 font-medium' : ''}>
+          {duration || (workingStatus === 'in_progress' ? 'Active shift' : '0h 00m')}
+        </span>
       </div>
     </div>
   );
