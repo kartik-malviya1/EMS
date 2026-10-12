@@ -89,11 +89,11 @@ export const PunchCard: React.FC<PunchCardProps> = ({
         <CardContent className="p-6">
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
             <div>
-              <div className="flex items-baseline gap-2 font-mono">
-                <span className="text-4xl sm:text-5xl font-black tracking-tight text-foreground">
+              <div className="flex items-baseline gap-2 font-digital">
+                <span className="text-4xl sm:text-5xl font-black tracking-wider text-foreground font-digital tabular-nums">
                   {currentTime.toFormat('hh:mm:ss')}
                 </span>
-                <span className="text-xl sm:text-2xl font-bold text-muted-foreground uppercase">
+                <span className="text-xl sm:text-2xl font-bold text-muted-foreground uppercase font-digital tracking-widest">
                   {currentTime.toFormat('a')}
                 </span>
               </div>

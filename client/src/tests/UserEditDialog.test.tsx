@@ -105,7 +105,7 @@ describe('UserEditDialog Component', () => {
     await userEvent.click(saveBtn);
 
     expect(
-      await screen.findByText(/Cannot demote or deactivate this manager because they have assigned active team members/i)
+      await screen.findByText(/Cannot demote or deactivate this manager because they have assigned team members/i)
     ).toBeInTheDocument();
   });
 });

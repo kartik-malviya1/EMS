@@ -33,7 +33,7 @@ export const createSocketToken = (userId) => {
 
 export const getSessionCookieOptions = () => ({
   httpOnly: true,
-  sameSite: env.NODE_ENV === 'production' ? 'none' : 'lax',
+  sameSite: 'lax',
   secure: env.NODE_ENV === 'production',
   path: '/',
   maxAge: 12 * 60 * 60 * 1000, // 12 hours

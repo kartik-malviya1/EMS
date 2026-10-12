@@ -1,264 +1,334 @@
-# Attendance Management System (MERN)
+# Attendance Management System (EMS)
 
-A full-stack role-based Attendance Management System featuring location tracking, live photo verification, overtime workflows, daily reports with Excel/PDF export, automated shifts, and real-time updates.
+A full-stack, enterprise-grade Attendance Management System built with React 19, TypeScript, Node.js 20+, Express 5, and MongoDB Atlas. Features biometric selfie verification (camera only, zero file uploads), geofenced punch operations, automated 8-hour shift tracking, overtime approvals, leave management, exportable daily reports (PDF/Excel), and real-time Socket.IO synchronization.
 
-## Repository Structure
+---
+
+## Live Deployment Links
+
+- **Frontend Application (Vercel)**: [https://ems-client-sand.vercel.app](https://ems-client-sand.vercel.app)
+- **Backend API Service (Render)**: [https://ems-server-wjey.onrender.com](https://ems-server-wjey.onrender.com)
+- **API Health Check**: [https://ems-client-sand.vercel.app/api/health](https://ems-client-sand.vercel.app/api/health) (proxied through Vercel to Render)
+- **GitHub Repository**: [https://github.com/kartik-malviya1/EMS](https://github.com/kartik-malviya1/EMS) (Branch: `main`)
+
+---
+
+## Demo Accounts (Evaluator Access)
+
+Pre-configured role accounts are documented below. Passwords are set by `DEMO_PASSWORD` (default: `DemoPassword123`) and `ADMIN_PASSWORD` (default: `AdminPassword123`):
+
+| Role         | Name                           | Email Address               | Password Source | Default Password  | Target Dashboard      |
+| :----------- | :----------------------------- | :-------------------------- | :-------------- | :---------------- | :-------------------- |
+| **Admin**    | Demo Admin                     | `demo.admin@example.com`    | `DEMO_PASSWORD` | `DemoPassword123` | `/admin/dashboard`    |
+| **Manager**  | Sarah Connor (Engineering Mgr) | `manager.sarah@example.com` | `DEMO_PASSWORD` | `DemoPassword123` | `/manager/dashboard`  |
+| **Employee** | Alice Walker (Engineering)     | `alice.walker@example.com`  | `DEMO_PASSWORD` | `DemoPassword123` | `/employee/dashboard` |
+
+> **Public Registration**: Public signup is enabled on the live production deployment (`ALLOW_PUBLIC_REGISTRATION=true`). Evaluators can also register new employee accounts directly at [/signup](https://ems-client-sand.vercel.app/signup).
+
+### Non-Destructive Database Seeding Commands (MongoDB Atlas)
+
+If the production database lacks seeded accounts, execute the following commands locally against your remote Atlas database. These scripts are non-destructive (upsert/idempotent) and will never overwrite existing production records:
+
+```bash
+# 1. Seed or synchronize the Administrator account
+cd server
+MONGODB_URI="<your-mongodb-atlas-uri>" ADMIN_EMAIL="admin@example.com" ADMIN_PASSWORD="AdminPassword123" npm run seed:admin
+
+# 2. Seed Demo Accounts (1 Admin, 2 Managers, 6 Employees, 14 days attendance)
+# Note: ALLOW_PROD_SEED=true and --allow-prod override the production safeguard
+cd server
+MONGODB_URI="<your-mongodb-atlas-uri>" DEMO_PASSWORD="DemoPassword123" ALLOW_PROD_SEED=true npm run seed:demo -- --allow-prod
+```
+
+---
+
+## Architecture Overview
+
+```mermaid
+graph TB
+    subgraph Client ["Client Layer (Vercel)"]
+        UI["React 19 + TypeScript + Vite"]
+        RTK["Redux Toolkit + RTK Query"]
+        WSClient["Socket.IO Client"]
+    end
+
+    subgraph Proxy ["Edge Routing (client/vercel.json)"]
+        Rewrite["/api/* Rewrite Rule"]
+        Fallback["SPA Fallback /(.*)"]
+    end
+
+    subgraph Server ["Backend Web Service (Render)"]
+        Express["Express 5 REST API"]
+        Auth["JWT Cookie Auth (SameSite=Lax, HttpOnly)"]
+        WSServer["Socket.IO Server"]
+        Cron["node-cron Shifts & Alerts"]
+        Morgan["Morgan Request Logging"]
+    end
+
+    subgraph Services ["External & Storage Services"]
+        Atlas[("MongoDB Atlas Database")]
+        Cloudinary["Cloudinary (Private Biometric Selfies)"]
+        Resend["Resend Transactional Email API"]
+    end
+
+    UI -->|"Relative /api requests"| Rewrite
+    Rewrite -->|"Secure Proxy"| Express
+    UI -.->|"Realtime Events"| WSServer
+    Express --> Auth
+    Express --> Atlas
+    Express -->|"Signed Upload / Stream"| Cloudinary
+    Express -->|"Transactional Invites"| Resend
+    Cron --> Atlas
+```
+
+### Architectural Principles
+
+1. **First-Party Cookie Isolation**: The frontend interacts exclusively with relative `/api` paths. In production, Vercel proxies all `/api/*` traffic directly to Render before falling back to the SPA index. JWT session cookies are configured with `SameSite=Lax`, `HttpOnly`, and `Secure`, avoiding cross-origin third-party cookie restrictions.
+2. **Biometric Camera Verification**: Live selfies are captured via browser `MediaDevices.getUserMedia()` rendering onto HTML5 canvas. Raw file uploads (`<input type="file">`) are disabled throughout the codebase. Captured frames are streamed to private, authenticated Cloudinary storage and proxied back to authenticated reviewers through signed backend streams.
+3. **Injectable Shift Schedules & Timezone Accuracy**: Work dates and timestamps are calculated in the configured `BUSINESS_TIMEZONE` (`Asia/Kolkata`) using server clock time. Shifts store schedule snapshots (`shiftStart`, `shiftEnd`, `expectedMinutes`, `graceMinutes`) to prevent retroactive disruption when organization policies update.
+4. **Resilient Realtime Layer**: WebSocket events sync notifications and punch status live across active browser tabs. If WebSockets disconnect, the entire system gracefully falls back to deterministic REST queries.
+
+---
+
+## Features Implemented
+
+### Mandatory Requirements (Assignment Scope)
+
+- [x] **Secure Auth & RBAC**: JWT HttpOnly authentication, password hashing (bcrypt, cost 12), dual onboarding (public signup + invite activation), strict role gating (`admin`, `manager`, `employee`).
+- [x] **Camera-Only Attendance**: Live selfie capture via camera stream, zero file upload inputs, geolocation coordinate capture (latitude, longitude, accuracy).
+- [x] **8-Hour Standard Shifts**: Automatic calculation of `workedMinutes`; &ge; 480 minutes displays **Completed**, &lt; 480 minutes displays **Incomplete**, open shifts display **In Progress**.
+- [x] **Overtime Requests & Approvals**: Employees can request overtime on eligible shifts; managers/admins can review, approve, or reject requests with audit logging.
+- [x] **Role-Based Dashboards**:
+  - **Employee**: Personal attendance history, live clocking stats, overtime request tracking.
+  - **Manager**: Assigned team attendance, pending overtime reviews, team member records.
+  - **Admin**: Organization-wide attendance, user management, system policy configurations.
+- [x] **Attendance Validation**: Managers and Admins can view punch selfies, inspect GPS accuracy, mark records as **Valid** or **Invalid** (requires &ge; 5 character remarks), and view audit history.
+- [x] **Daily Reports**: Aggregated daily reports scoped by role (Employee: self, Manager: team, Admin: all) with punch-in/out times, location, working hours, and validation status.
+
+### Good-to-Have Requirements
+
+- [x] **Advanced List Filtering & Pagination**: Main tables support date range filtering (`from`, `to`), role filters, text search, and server-side pagination (`page`, `limit`).
+- [x] **Responsive & Accessible UI**: Clean responsive layout, clear loading skeletons, empty states, and descriptive error surfacing.
+
+### Bonus Features
+
+- [x] **Geofencing Enforcement**: Haversine distance calculation against configured office coordinates; configurable radius and GPS accuracy checks.
+- [x] **Automated Cron Notifications**: Scheduled alerts for missed punch-in, missed punch-out, and auto-close of abandoned shifts.
+- [x] **Socket.IO Real-Time Sync**: Live notification delivery and status updates across browser tabs.
+- [x] **Theme Switcher**: Complete Dark Mode and Light Mode support with WCAG AA compliant contrast ratios.
+- [x] **Export Formats**: Multi-sheet formatted Excel (`.xlsx`) export and landscape PDF (`.pdf`) export with KPI summary cards and distribution charts.
+
+---
+
+## Role-Based Access Control (RBAC) Matrix
+
+| Feature / Resource                     | Unauthenticated | Employee  |     Manager      |      Admin      |
+| :------------------------------------- | :-------------: | :-------: | :--------------: | :-------------: |
+| Public Signup & Login                  |       Yes       |     —     |        —         |        —        |
+| Accept Invitation & Activate Account   |       Yes       |     —     |        —         |        —        |
+| Punch In & Punch Out (Camera + GPS)    |       No        |    Yes    | Yes (Assumption) | No (Admin only) |
+| View Personal Attendance & Overtime    |       No        |    Yes    |       Yes        |       No        |
+| Request Overtime                       |       No        |    Yes    |       Yes        |       No        |
+| View Team Attendance & Overtime Queue  |       No        |    No     | Yes (Team scope) |    Yes (All)    |
+| Review / Validate Attendance Records   |       No        |    No     | Yes (Team scope) |    Yes (All)    |
+| Approve / Reject Overtime Requests     |       No        |    No     | Yes (Team scope) |    Yes (All)    |
+| Apply for Leave & Cancel Pending       |       No        |    Yes    |       Yes        |       No        |
+| Review Leave Applications              |       No        |    No     | Yes (Team scope) |    Yes (All)    |
+| Manage Users & Roles (`/admin/users`)  |       No        |    No     |        No        |       Yes       |
+| Configure Attendance Policy & Geofence |       No        |    No     |        No        |       Yes       |
+| Send & Inspect Email Invitations       |       No        |    No     | Yes (Team scope) |    Yes (All)    |
+| Export Daily Attendance (PDF/Excel)    |       No        | Yes (Own) |    Yes (Team)    |    Yes (All)    |
+
+---
+
+## API Overview
+
+All API endpoints are mounted under `/api` and return standardized responses:
+
+- **Success**: `{ "success": true, "data": ..., "meta"?: { ... } }`
+- **Error**: `{ "success": false, "error": { "code": "STRING_CODE", "message": "...", "details"?: [...] } }`
+
+### Summary of Routes
 
 ```
-/client   # Frontend (React 19 + Vite + TypeScript + Tailwind CSS + Redux Toolkit)
-/server   # Backend (Node.js 20+ + Express 5 + Mongoose + Zod + Socket.IO)
+GET    /api/health                                Public health check
+GET    /api/auth/config                           Public registration feature flag (creates employee)
+POST   /api/auth/login                            Authentication & session cookie dispatch
+POST   /api/auth/logout                           Session invalidation & cookie clear
+GET    /api/auth/me                               Get authenticated profile
+GET    /api/auth/socket-token                     Generate short-lived 60s WebSocket token
+POST   /api/auth/invitations/request-link        Self-service invitation retrieval
+POST   /api/auth/invitations/validate            Token validation before activation
+POST   /api/auth/accept-invitation                Password configuration & activation
+
+GET    /api/attendance/today                      Today's active attendance record
+GET    /api/attendance/me                         Personal attendance history (paginated)
+GET    /api/attendance/team                       Manager team attendance history
+GET    /api/attendance                            Admin system-wide attendance records
+POST   /api/attendance/punch-in                   Punch in (multipart: selfie, lat, lng, accuracy)
+POST   /api/attendance/punch-out                  Punch out (multipart: selfie, lat, lng, accuracy)
+GET    /api/attendance/:id/selfies/:kind          Stream authorized biometric selfie
+PATCH  /api/attendance/:id/verify                 Validate record (Valid / Invalid + remarks)
+
+POST   /api/overtime/request                      Submit overtime request for shift
+GET    /api/overtime/pending                      List pending overtime reviews (scoped)
+PATCH  /api/overtime/:id/review                   Approve or reject overtime request
+
+GET    /api/reports/daily                         Daily attendance aggregated report
+GET    /api/reports/daily/export                  Export report (format=xlsx or format=pdf)
+
+GET    /api/dashboard/summary                     Role-specific dashboard metrics & KPIs
+
+GET    /api/users                                 Admin user directory
+GET    /api/users/team                            Manager team directory
+GET    /api/users/managers                        Active managers lookup
+PATCH  /api/users/:id                             Update user role, status, or manager
+
+GET    /api/settings/geofence                     Get geofence configuration
+PUT    /api/settings/geofence                     Update geofence configuration
+
+GET    /api/notifications                         Paginated user notifications
+GET    /api/notifications/unread-count            Unread notifications count
+PATCH  /api/notifications/:id/read                Mark notification as read
+PATCH  /api/notifications/read-all                Mark all notifications as read
+
+POST   /api/leave                                 Apply for leave
+GET    /api/leave/me                              Personal leave requests
+GET    /api/leave/team                            Manager team leave requests
+GET    /api/leave                                 Admin all leave requests
+PATCH  /api/leave/:id/cancel                      Cancel pending leave
+PATCH  /api/leave/:id/review                      Approve or reject leave application
 ```
+
+---
+
+## Environment Variables (Names Only)
+
+### Backend Environment Variables (`server/.env`)
+
+| Variable Name                  |  Required   | Purpose                                                                |
+| :----------------------------- | :---------: | :--------------------------------------------------------------------- |
+| `NODE_ENV`                     |     Yes     | Application environment (`development`, `production`, `test`)          |
+| `PORT`                         |     Yes     | HTTP listening port (default: `5000`)                                  |
+| `MONGODB_URI`                  |     Yes     | MongoDB connection string (Atlas in production)                        |
+| `JWT_SECRET`                   |     Yes     | Cryptographic secret for signing session and socket tokens             |
+| `JWT_EXPIRES_IN`               |     No      | Session duration (default: `12h`)                                      |
+| `CLIENT_ORIGIN`                |     Yes     | Allowed frontend origin for CORS and CSRF defense                      |
+| `APP_BASE_URL`                 |     Yes     | Canonical frontend URL used to build invitation links                  |
+| `BUSINESS_TIMEZONE`            |     No      | Business timezone for date/time computations (default: `Asia/Kolkata`) |
+| `STANDARD_SHIFT_MINUTES`       |     No      | Standard shift duration in minutes (default: `480`)                    |
+| `WORKING_DAYS`                 |     No      | Working days of week (default: `1,2,3,4,5` for Mon–Fri)                |
+| `ENABLE_CRON`                  |     No      | Enable node-cron scheduled shift jobs (default: `true`)                |
+| `ALLOW_PUBLIC_REGISTRATION`    |     No      | Feature flag controlling self-service signup (default: `true`)         |
+| `CLOUDINARY_CLOUD_NAME`        |     Yes     | Cloudinary account cloud name for selfie storage                       |
+| `CLOUDINARY_API_KEY`           |     Yes     | Cloudinary API key                                                     |
+| `CLOUDINARY_API_SECRET`        |     Yes     | Cloudinary API secret                                                  |
+| `CLOUDINARY_FOLDER`            |     No      | Target folder for uploaded selfies (default: `attendance`)             |
+| `GEOFENCE_ENABLED`             |     No      | Toggle geofence enforcement on punch operations                        |
+| `GEOFENCE_OFFICE_LAT`          | Conditional | Latitude of designated office location                                 |
+| `GEOFENCE_OFFICE_LNG`          | Conditional | Longitude of designated office location                                |
+| `GEOFENCE_RADIUS_METERS`       |     No      | Permitted radius around office (default: `200`)                        |
+| `GEOFENCE_MAX_ACCURACY_METERS` |     No      | Maximum permitted GPS accuracy reading (default: `100`)                |
+| `ADMIN_NAME`                   |     No      | Name for seeded administrator                                          |
+| `ADMIN_EMAIL`                  |     No      | Email address for seeded administrator                                 |
+| `ADMIN_PASSWORD`               |     No      | Password for seeded administrator                                      |
+| `EMAIL_PROVIDER`               |     No      | Email driver (`resend`)                                                |
+| `RESEND_API_KEY`               | Conditional | Resend API key for transactional invitations (`re_...`)                |
+| `EMAIL_FROM`                   | Conditional | Sender address (e.g. `EMS Portal <onboarding@resend.dev>`)             |
+| `INVITATION_EXPIRY_HOURS`      |     No      | Invitation token lifespan in hours (default: `72`)                     |
+
+### Frontend Environment Variables (`client/.env`)
+
+| Variable Name       | Required | Purpose                                                                                |
+| :------------------ | :------: | :------------------------------------------------------------------------------------- |
+| `VITE_API_BASE_URL` |   Yes    | Base URL for API requests (`/api` for same-origin proxy rewrites)                      |
+| `VITE_SOCKET_URL`   |   Yes    | WebSocket root URL (`https://ems-server-wjey.onrender.com` or `http://localhost:5000`) |
+
+---
 
 ## Setup & Running Locally
 
-### Backend (`/server`)
+### Prerequisites
 
-1. `cd server`
-2. `cp .env.example .env` (fill in your MongoDB URI and secrets)
-3. `npm run dev` (starts on http://localhost:5000)
-4. `npm test` (runs backend test suite)
-5. `npm run lint` (runs ESLint)
+- Node.js &gt;= 20.0.0
+- npm &gt;= 10.0.0
+- MongoDB instance (local or Atlas)
+- Cloudinary credentials (free tier)
 
-### Frontend (`/client`)
-
-1. `cd client`
-2. `cp .env.example .env`
-3. `npm run dev` (starts on http://localhost:5173 with proxy to backend)
-4. `npm run build` (type-checks and builds bundle)
-5. `npm test` (runs frontend test suite)
-6. `npm run lint` (runs ESLint)
-
----
-
-## Assumptions & Rules
-
-1. **Manager Self-Attendance**: Manager self-attendance is an implementation assumption (the assignment only describes employee punch-in/out).
-2. **Administrative Role**: Admin is strictly an administrative-only role: no punch in/out, no personal attendance records, no overtime requests, and no shift alerts.
-3. **Midnight Boundary**: Shifts crossing business midnight are not supported; auto-close at `AUTO_CLOSE_TIME` marks unclosed shifts as missed.
-4. **Scope at Request Time**: Authority over pending items is evaluated dynamically at request time (if an employee's manager is reassigned, pending review items move with the employee).
-5. **BUSINESS_TIMEZONE**: `Asia/Kolkata` (default). All work dates and attendance calculated server-side using server clock.
-6. **One Record per Day**: Strictly one attendance record per employee per business work date.
-7. **Floor Minutes & No Breaks**: `workedMinutes = floor((punchOut - punchIn)/60000)`, no break deductions.
-8. **Overtime Rule**: Overtime is defined as time worked beyond standard shift duration of 480 minutes (8 hours).
-9. **Reviewer Scope Matrix**: Employee records are reviewed by their assigned manager or any admin. Manager records are reviewed by admins only. No one reviews their own records (self-review blocked with 403).
-10. **Lazy Auto-Close**: Lazy auto-close at punch-in covers server sleep on free hosting.
-11. **Single-Instance Cron**: node-cron scheduled jobs assume a single running backend instance.
-12. **Same-Origin Proxy Cookies**: JWT session cookie is first-party via dev proxy locally and Vercel rewrite in production.
-13. **Live Selfies**: Live camera capture only (no file uploads), authenticated and streamed server-side through signed Cloudinary proxy.
-14. **Dual Onboarding Paths**: Both public signup (controlled by `ALLOW_PUBLIC_REGISTRATION`) and invite-only employee onboarding are supported.
-15. **Resend Sandbox Sender**: When using `onboarding@resend.dev`, Resend can deliver testing emails only to the Resend account owner's email address. Any external recipient requires a verified custom domain.
-16. **Accepted vs Delivered**: An `accepted` status indicates Resend API accepted and queued the email; actual delivery to inbox is confirmed when `last_event` reports `delivered`.
-17. **Webhooks Omission**: Asynchronous push delivery webhooks from Resend are not implemented because they require a publicly reachable HTTPS webhook URL with signature verification.
-18. **Zero Simulation / Real Delivery**: Development mode, local simulated links, and fake delivery fallbacks have been completely removed from the entire application. All invitations dispatch real emails through Resend.
-19. **APP_BASE_URL & Domains**: Invitation links are built using `new URL('/accept-invitation', APP_BASE_URL)`. Changing `APP_BASE_URL` on the backend host (and matching `CLIENT_ORIGIN`) is how deployed links use the real domain.
-
----
-
-## Invite-Only Employee Lifecycle & Resend Integration
-
-### 1. Resend Email Service Setup
-
-The portal integrates exclusively with the official [Resend](https://resend.com) Node SDK for transactional email dispatch.
-
-#### Account & API Key Configuration
-
-1. Sign up or log in at [resend.com](https://resend.com).
-2. Go to **API Keys** and generate a new key (`re_...`).
-   - **Permission Trade-off**:
-     - **Sending access (send-only)**: Allows creating and resending emails. Status checks via `resend.emails.get` will return 403 (`EMAIL_STATUS_NOT_PERMITTED`).
-     - **Full access**: Allows both sending emails and querying message delivery events (`last_event`). Recommended for admin delivery diagnostics.
-3. Add the key to `server/.env`:
-   ```bash
-   RESEND_API_KEY=re_your_api_key_here
-   EMAIL_PROVIDER=resend
-   EMAIL_FROM=AMS Portal <onboarding@resend.dev>
-   APP_BASE_URL=http://localhost:5173
-   ```
-   _(Keep secrets confidential. Never commit `.env` to version control)._
-
-#### Manual Verification Smoke Test
-
-Before creating invitations, verify that your API key and sender configuration work using the smoke script:
+### 1. Backend Setup
 
 ```bash
 cd server
-npm run email:smoke -- --to user@example.com --confirm
+cp .env.example .env
+# Edit .env with your MONGODB_URI and Cloudinary credentials
+
+npm install
+npm run seed:admin
+npm run seed:demo
+npm run dev
+# Server starts on http://localhost:5000
 ```
 
-> Both `--to <address>` and `--confirm` flags are mandatory. The script sends one plain test email and outputs only the provider message ID or mapped error code.
+### 2. Frontend Setup
+
+```bash
+cd client
+cp .env.example .env
+# Default .env is configured with VITE_API_BASE_URL=/api and VITE_SOCKET_URL=http://localhost:5000
+
+npm install
+npm run dev
+# Client starts on http://localhost:5173 with Vite proxying /api to localhost:5000
+```
 
 ---
 
-### 2. Sandbox Sender (`onboarding@resend.dev`) Rules
+## Testing & Quality Assurance
 
-- When `EMAIL_FROM` uses domain `resend.dev` (e.g. `onboarding@resend.dev`), Resend enforces test sandbox mode.
-- **Symptom & 403 Error**: Attempting to send to any address other than your Resend account email fails with Resend 403 `validation_error`. The portal maps this to `EMAIL_SANDBOX_RECIPIENT_RESTRICTED` with actionable guidance: _"Resend's test sender can only deliver to your own Resend account email. Verify a domain at resend.com/domains and set EMAIL_FROM to an address on it to email other people."_
+Both server and client include comprehensive automated test suites that run independently of external services.
 
----
+### Running Backend Tests
 
-### 3. Custom Sending Domain Verification
+```bash
+cd server
+npm test
+# Runs 16 test files (268 unit and integration tests) using Vitest and mongodb-memory-server
+npm run lint
+# Validates code style with ESLint
+```
 
-To email colleagues and team members across any organization:
+### Running Frontend Tests
 
-1. Go to [resend.com/domains](https://resend.com/domains) and add your domain. Resend recommends using a dedicated subdomain such as `notifications.<yourdomain.com>`.
-2. Configure DNS records with your DNS provider:
-   - **SPF (TXT)**: Authorizes mail server routing.
-   - **DKIM (CNAME / TXT)**: Cryptographic signature to pass DMARC and avoid spam folders.
-   - **Return-Path (MX / CNAME)**: Bounce handling route.
-3. Wait for DNS verification, then update `server/.env`:
-   ```bash
-   EMAIL_FROM=AMS Portal <invitations@notifications.yourdomain.com>
-   ```
-
----
-
-### 4. Delivery Status Lifecycle & Status Meaning
-
-| Status     | Meaning & Details                                                                                                 |
-| ---------- | ----------------------------------------------------------------------------------------------------------------- |
-| `pending`  | Invitation created or queued; send claim in progress.                                                             |
-| `accepted` | Resend API accepted the request and assigned a `providerMessageId`. **Note: This does not prove inbox delivery.** |
-| `failed`   | Resend API or network error prevented delivery. Stored under `emailLastError` with mapped error code.             |
-
-#### Delivery Events (`emailLastEvent`)
-
-When checking status via `/api/admin/invitations/:id/check-delivery` or the Admin Settings diagnostic panel, Resend's delivery events are mapped:
-
-- **Delivered**: Recipient's mail server accepted message delivery.
-- **Bounced**: Delivery rejected by recipient mail server (hard or soft bounce).
-- **Complained**: Recipient marked the message as spam.
-- **Delayed**: Temporary delivery delay encountered by upstream mail servers.
-- **Opened / Clicked**: Recipient engaged with the email.
+```bash
+cd client
+npm test
+# Runs 13 test files (55 component and flow tests) using Vitest and JSDOM
+npm run build
+# Runs TypeScript compiler (tsc -b) and production bundle build
+npm run lint
+# Validates frontend linting
+```
 
 ---
 
-### 5. Resend Free Plan Quotas
-
-- **Daily Limit**: 100 emails / day.
-- **Monthly Limit**: 3,000 emails / month.
-- **Burst Rate Limit**: 2 requests / second.
-  Exceeding limits returns HTTP 429 (`EMAIL_RATE_LIMITED` / `EMAIL_QUOTA_EXCEEDED`).
-
----
-
-### 6. Error-Code Diagnosis Table
-
-| Internal Code                        | HTTP | Root Cause                                                 | Actionable Guidance                                                  |
-| ------------------------------------ | ---- | ---------------------------------------------------------- | -------------------------------------------------------------------- |
-| `EMAIL_NOT_CONFIGURED`               | 503  | `RESEND_API_KEY` unset, empty, or placeholder              | Set a real key starting with `re_` in `server/.env`                  |
-| `EMAIL_INVALID_API_KEY`              | 502  | Key rejected by Resend with 401                            | Verify and replace `RESEND_API_KEY`                                  |
-| `EMAIL_SANDBOX_RECIPIENT_RESTRICTED` | 502  | Sender is `resend.dev` and recipient is not account owner  | Verify custom domain at `resend.com/domains` and update `EMAIL_FROM` |
-| `EMAIL_DOMAIN_NOT_VERIFIED`          | 502  | `EMAIL_FROM` domain not verified on Resend                 | Complete DNS records (DKIM/SPF) on `resend.com/domains`              |
-| `EMAIL_STATUS_NOT_PERMITTED`         | 502  | API key has "Sending access" only; status checks forbidden | Create a "Full access" API key to inspect delivery events            |
-| `EMAIL_RATE_LIMITED`                 | 502  | Exceeded 2 req/s burst limit                               | Wait and retry after cooldown                                        |
-| `EMAIL_QUOTA_EXCEEDED`               | 502  | Exceeded daily/monthly plan quota                          | Wait for quota reset or upgrade Resend tier                          |
-| `EMAIL_INVALID_RECIPIENT_OR_PARAMS`  | 502  | Invalid email syntax or parameters                         | Verify recipient email address format                                |
-| `EMAIL_TIMEOUT`                      | 502  | Request exceeded `EMAIL_SEND_TIMEOUT_MS` (10s)             | Retry reuses idempotency key to prevent duplicates                   |
-| `EMAIL_PROVIDER_ERROR`               | 502  | Upstream network failure                                   | Check server connectivity to `api.resend.com`                        |
-
----
-
-### 7. Tunnels & Deployed Domain Switching
-
-- **Local Dev / Mobile Testing via Tunnel**:
-  1. Start tunnel (e.g. `cloudflared tunnel --url http://localhost:5173` or `ngrok http 5173`).
-  2. In `client/vite.config.ts`, ensure `server.allowedHosts` includes your tunnel domain if required.
-  3. Update `server/.env`:
-     ```bash
-     APP_BASE_URL=https://your-tunnel.trycloudflare.com
-     CLIENT_ORIGIN=https://your-tunnel.trycloudflare.com
-     ```
-- **Production Deployment (Vercel + Render)**:
-  - When your Vercel frontend domain is active (e.g. `https://ams.yourdomain.com`), set:
-    ```bash
-    APP_BASE_URL=https://ams.yourdomain.com
-    CLIENT_ORIGIN=https://ams.yourdomain.com
-    ```
-    on the Render backend host. All generated invitation links will automatically point to the production Vercel domain.
-
----
-
-### 8. Endpoints Summary
-
-#### Public Auth & Self-Service
-
-- `GET /api/auth/config` — Public feature flags (`{ publicRegistrationEnabled: boolean }`).
-- `POST /api/auth/invitations/request-link` — Self-service invitation request (`{ email }`). Always returns generic 200 to prevent user enumeration. Dispatches in background.
-- `POST /api/auth/invitations/validate` — Validate invitation token from URL.
-- `POST /api/auth/accept-invitation` — Set password and activate account.
-
-#### Admin Invitation Management & Verification
-
-- `GET /api/admin/invitations/email-status` — Provider configuration overview.
-- `POST /api/admin/invitations` — Issue employee/manager invitation.
-- `GET /api/admin/invitations` — List invitations with delivery status badges and last events.
-- `POST /api/admin/invitations/:id/resend` — Rotate token and resend invitation email.
-- `POST /api/admin/invitations/:id/revoke` — Revoke pending invitation.
-- `POST /api/admin/invitations/:id/check-delivery` — Check live Resend delivery event.
-- `POST /api/admin/email/test` — Send fixed test template to verify delivery.
-- `GET /api/admin/email/messages/:providerMessageId` — Retrieve delivery event from Resend.
-
----
-
-## Leave Management Module
-
-The Leave Management module allows employees and managers to request time off, and provides role-based review queues with overlap protection and attendance conflict preservation.
-
-### Features
-
-1. **Application**: Apply for `annual`, `sick`, `casual`, or `unpaid` leave with date ranges and optional single-date half-day (`first_half` / `second_half`).
-2. **Business Day Calculation**: Duration is deterministically computed in `Asia/Kolkata` business timezone, automatically excluding weekends (Monday–Friday work week).
-3. **Validation & Protection**:
-   - Rejects overlapping leave requests.
-   - Prevents managers from approving their own leave (`CANNOT_SELF_REVIEW`).
-   - If an employee has no assigned manager, the request escalates to organization Admins.
-   - Preserves actual punch-in attendance records if an employee worked on an approved leave date, flagging conflicts for managerial review rather than erasing data.
-4. **Lifecycle & Statuses**: `pending`, `approved`, `rejected`, `cancelled` (eligible while still pending).
-
-### Leave Endpoints
-
-- `POST /api/leave` — Submit leave application (`{ leaveType, startDate, endDate, isHalfDay, halfDayPeriod, reason }`).
-- `GET /api/leave/me` — List personal leave request history.
-- `GET /api/leave/team` — List assigned team leave requests for Manager review.
-- `GET /api/leave` — Organization-wide leave requests for Admin oversight.
-- `PATCH /api/leave/:id/cancel` — Cancel a pending leave request.
-- `PATCH /api/leave/:id/review` — Review leave request (`{ status: 'approved' | 'rejected', remarks }`).
-
----
-
-## Notifications & Real-Time Updates
-
-- **Persistent MongoDB Store**: Missed punch-in, missed punch-out, auto-close, verification outcomes, overtime reviews, and leave reviews persist in `Notification` collection.
-- **Idempotent Cron Alerts**: Scheduled jobs run in `Asia/Kolkata` timezone:
-  - Missed Punch-In: Automatically skips non-working days, inactive accounts, Admins, and employees on approved leave.
-  - Missed Punch-Out: Alerts open shifts without duplicating.
-  - Auto-Close: Closes expired open shifts as missed.
-- **Authorized Socket.IO Rooms**:
-  - Connection requires JWT token with `purpose="socket"`.
-  - Derived rooms: `user:<id>`, `team:<managerId>`, `role:admin`.
-  - Client listeners cannot spoof or join unauthorized rooms.
-  - Decoupled REST: All workflows function independently if the WebSocket disconnects.
-
----
-
-## Deployment Checklist
+## Deployment Checklist & Dashboard Steps
 
 ### 1. Vercel Frontend Configuration (`client`)
-- **Project Root Directory**: `client`
+
+- **Root Directory**: `client`
 - **Framework Preset**: `Vite`
 - **Build Command**: `npm run build`
 - **Output Directory**: `dist`
 - **Environment Variables**:
-  - `VITE_API_BASE_URL=/api` (uses relative `/api` path so all requests go through Vercel's proxy rewrite)
-  - `VITE_SOCKET_URL=https://ems-server.onrender.com` (backend root URL for real-time Socket.IO)
-- **`client/vercel.json`**:
-  Must contain the `/api/:path*` rewrite to the Render backend BEFORE the SPA `/(.*)` fallback:
+  - `VITE_API_BASE_URL` = `/api`
+  - `VITE_SOCKET_URL` = `https://ems-server-wjey.onrender.com`
+- **API Rewrite Rule (`client/vercel.json`)**:
   ```json
   {
     "rewrites": [
       {
         "source": "/api/:path*",
-        "destination": "https://ems-server.onrender.com/api/:path*"
+        "destination": "https://ems-server-wjey.onrender.com/api/:path*"
       },
       {
         "source": "/(.*)",
@@ -269,48 +339,61 @@ The Leave Management module allows employees and managers to request time off, a
   ```
 
 ### 2. Render Backend Web Service (`server`)
-- **Repository Root Directory**: `server`
-- **Environment**: Node.js
+
+- **Root Directory**: `server`
+- **Environment**: `Node.js`
 - **Build Command**: `npm install`
 - **Start Command**: `npm start`
 - **Health Check Path**: `/api/health`
-- **Environment Variables** *(names only, configure securely in Render dashboard)*:
-  - `NODE_ENV` (`production`)
-  - `PORT` (`5000`)
-  - `MONGODB_URI`
-  - `JWT_SECRET`
-  - `JWT_EXPIRES_IN`
-  - `CLIENT_ORIGIN` (e.g. `https://ems-client-sand.vercel.app`)
-  - `APP_BASE_URL` (e.g. `https://ems-client-sand.vercel.app`)
-  - `BUSINESS_TIMEZONE`
-  - `STANDARD_SHIFT_MINUTES`
-  - `WORKING_DAYS`
-  - `ENABLE_CRON`
-  - `EMAIL_PROVIDER`
-  - `RESEND_API_KEY`
-  - `EMAIL_FROM`
-  - `INVITATION_EXPIRY_HOURS`
-  - `ALLOW_PUBLIC_REGISTRATION`
-  - `CLOUDINARY_CLOUD_NAME`
-  - `CLOUDINARY_API_KEY`
-  - `CLOUDINARY_API_SECRET`
-  - `CLOUDINARY_FOLDER`
-  - `GEOFENCE_ENABLED`
-  - `GEOFENCE_RADIUS_METERS`
-  - `GEOFENCE_MAX_ACCURACY_METERS`
-  - `ADMIN_NAME`
-  - `ADMIN_EMAIL`
-  - `ADMIN_PASSWORD`
+- **Environment Variables**: Configure the environment variable names documented above.
+
+### 3. MongoDB Atlas Configuration
+
+- In **Network Access**, ensure Render can communicate with Atlas (add Render outbound IPs or `0.0.0.0/0` with strong authentication).
+
+---
+
+## Assumptions
+
+1. **Manager Self-Attendance**: Managers punch in and out using the same attendance interface as employees (the assignment describes employee punch operations; manager attendance is an implementation assumption).
+2. **Admin Administrative Exclusivity**: Admin accounts are administrative-only: they do not punch in/out, have no personal attendance records, and cannot request overtime.
+3. **Midnight Shift Boundary**: Shifts crossing business midnight are not supported.
+4. **Dynamic Scope Evaluation**: Authority over pending reviews is evaluated at request time. If an employee is reassigned to a new manager, pending requests transfer to the new manager.
+5. **Business Timezone**: All shift calculations, work dates, and timestamps are generated server-side in `BUSINESS_TIMEZONE` (`Asia/Kolkata`).
+6. **One Record per Day**: Exactly one attendance record is created per employee per business work date.
+7. **Floor Minutes & No Breaks**: `workedMinutes = floor((punchOut - punchIn)/60000)` without unpaid break deductions.
+8. **Overtime Threshold**: Overtime begins immediately when worked minutes exceed 480 minutes (8 standard hours).
+9. **Reviewer Scope Matrix**: Employee records are reviewed by their assigned manager or any admin. Manager records are reviewed by admins only. Self-review is strictly forbidden (HTTP 403).
+10. **Lazy Auto-Close**: Lazy auto-close on subsequent punch attempts handles server sleep gaps on free hosting tiers.
+11. **Single-Instance Cron**: Scheduled jobs assume a single running instance.
+12. **Same-Origin Proxy Cookies**: JWT cookies are first-party through dev proxy locally and Vercel proxy rewrites in production.
+13. **Biometric Privacy**: Cloudinary images are authenticated and private; image binaries are streamed exclusively through authorized backend endpoints.
+14. **Dual Onboarding**: Public signup (`ALLOW_PUBLIC_REGISTRATION=true`) coexists with invite-only team activation.
+15. **Resend Sandbox Mode**: Test sender `onboarding@resend.dev` delivers only to the Resend account owner's email address. External recipients require a verified domain.
+16. **Accepted vs Delivered**: An `accepted` status indicates provider dispatch; inbox delivery is confirmed via message query.
+17. **Webhook Omission**: Asynchronous push webhooks are omitted in favor of pull-based delivery checks to avoid public endpoint dependency during evaluation.
+18. **Zero Simulation**: All invitation workflows dispatch real emails through Resend; mock delivery paths have been eliminated.
+19. **APP_BASE_URL Routing**: Invitation links use `APP_BASE_URL` to route recipients to the production Vercel domain.
+
+---
+
+## Known Limitations
+
+1. **Render Free Tier Cold Starts**: Render puts idle web services to sleep after 15 minutes of inactivity. The initial wake-up request can take 30–50 seconds to respond.
+2. **Camera Hardware Dependency**: Punching in and out requires an active camera device with browser media permissions. File uploads are intentionally omitted per assignment specifications.
+3. **Single Timezone per Deployment**: Shift calculations use `BUSINESS_TIMEZONE` globally across the organization. Multi-timezone distributed shifts are not supported.
 
 ---
 
 ## Troubleshooting
 
-| Status Code | Cause | Resolution |
-|---|---|---|
-| **404 / 405 (on `/api/*`)** | **Vercel rewrite missing or misordered**: Vercel serves `index.html` or returns 405 Method Not Allowed for API POSTs because the rewrite to Render is missing or placed after the SPA fallback. | Verify `client/vercel.json` has `{"source": "/api/:path*", "destination": "https://ems-server.onrender.com/api/:path*"}` listed **before** `{"source": "/(.*)", "destination": "/"}`. Confirm Vercel Root Directory is `client`. |
-| **404 (on page refresh `/login`, `/admin`)** | **SPA rewrite missing**: Browser requests a physical file like `/login.html` on Vercel which does not exist. | Ensure `client/vercel.json` has the fallback rewrite `{"source": "/(.*)", "destination": "/"}` to let React Router handle client-side routing. |
-| **502 / 504** | **Render free tier asleep (cold start)**: Render spins down idle services after 15 minutes. Cold starts take 30–50 seconds, causing Vercel's proxy gateway to time out (504). | Open `https://ems-server.onrender.com/api/health` directly in a new browser tab to wake the Render instance, or configure a free ping monitor (e.g. UptimeRobot) targeting `/api/health` every 10 minutes. |
-| **403 BAD_ORIGIN** | **CORS / CSRF origin mismatch**: Non-GET/OPTIONS requests check the `Origin` header against `CLIENT_ORIGIN`. | Set `CLIENT_ORIGIN=https://ems-client-sand.vercel.app` (without trailing slash) in the Render environment settings. (The backend also automatically allows any `*.vercel.app` origin). |
-| **401 INVALID_CREDENTIALS / TOKEN_EXPIRED** | **Password mismatch or expired cookie**: Either the admin password in MongoDB differs from `.env`, or the 12-hour session expired. | Run `npm run seed:admin` on the backend to sync the admin password with `ADMIN_PASSWORD`. Ensure `trust proxy = 1` is active in production so cookies are preserved across Vercel proxy headers. |
+| Status Code                 | Cause                                                                                                                                                        | Resolution                                                                                                                                                                                                                        |
+| :-------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **404 / 405 (on `/api/*`)** | **Vercel rewrite misconfigured**: Vercel serves HTML or returns 405 because the `/api/:path*` rewrite to Render is missing or listed after the SPA fallback. | Confirm `client/vercel.json` lists `{"source": "/api/:path*", "destination": "https://ems-server-wjey.onrender.com/api/:path*"}` **before** `{"source": "/(.*)", "destination": "/"}`. Confirm Vercel Root Directory is `client`. |
+| **502 / 504**               | **Render instance cold start**: Render free tier is waking from sleep.                                                                                       | Access `https://ems-server-wjey.onrender.com/api/health` in a browser to wake the service, or configure an external ping monitor.                                                                                                 |
+| **403 BAD_ORIGIN**          | **CORS / CSRF origin mismatch**: Non-GET request origin does not match `CLIENT_ORIGIN`.                                                                      | Ensure `CLIENT_ORIGIN=https://ems-client-sand.vercel.app` on the Render dashboard.                                                                                                                                                |
+| **401 INVALID_CREDENTIALS** | **Database credentials mismatch**: Production Atlas database lacks seeded demo accounts.                                                                     | Run the non-destructive seeding commands locally targeting your Atlas database.                                                                                                                                                   |
 
+---
+
+&copy; 2026 Attendance Management System. All rights reserved.

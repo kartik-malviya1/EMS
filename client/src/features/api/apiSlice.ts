@@ -37,7 +37,7 @@ export const getBaseUrl = (): string => {
     import.meta.env.VITE_API_URL ||
     import.meta.env.API_URL;
 
-  if (envUrl) {
+  if (envUrl && envUrl !== "/api") {
     let clean = envUrl.endsWith("/") ? envUrl.slice(0, -1) : envUrl;
     if (!clean.endsWith("/api")) {
       clean = `${clean}/api`;
@@ -45,15 +45,11 @@ export const getBaseUrl = (): string => {
     return clean;
   }
 
-  if (
-    typeof window !== "undefined" &&
-    (window.location.hostname === "localhost" ||
-      window.location.hostname === "127.0.0.1")
-  ) {
+  if (typeof window !== "undefined" && window.location?.origin) {
     return `${window.location.origin}/api`;
   }
 
-  return "https://ems-server-wjey.onrender.com/api";
+  return "/api";
 };
 
 const baseQuery = fetchBaseQuery({

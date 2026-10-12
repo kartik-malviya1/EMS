@@ -15,8 +15,14 @@ import { logger } from "../utils/logger.js";
 dotenv.config();
 
 export const seedDemo = async () => {
-  if (env.NODE_ENV === "production") {
-    logger.error("seed:demo cannot be run in production mode!");
+  if (
+    env.NODE_ENV === "production" &&
+    process.env.ALLOW_PROD_SEED !== "true" &&
+    !process.argv.includes("--allow-prod")
+  ) {
+    logger.error(
+      "seed:demo cannot be run in production mode without ALLOW_PROD_SEED=true or --allow-prod override!"
+    );
     process.exit(1);
   }
 
