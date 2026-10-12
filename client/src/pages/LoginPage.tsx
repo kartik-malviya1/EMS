@@ -394,10 +394,10 @@ export const LoginPage: React.FC = () => {
           </form>
 
           {/* Footer Links */}
-          <div className="space-y-2 text-center text-xs text-muted-foreground pt-4 border-t border-border/60">
+          {/* <div className="space-y-2 text-center text-xs text-muted-foreground pt-4 border-t border-border/60">
             {authConfig?.publicRegistrationEnabled && (
               <div>
-                New here?{" "}
+                New here?
                 <Link
                   to="/signup"
                   className="font-semibold text-primary hover:underline transition-colors"
@@ -415,7 +415,7 @@ export const LoginPage: React.FC = () => {
                 Request a new link
               </Link>
             </div>
-          </div>
+          </div> */}
         </div>
 
         {/* Footer Copyright */}
