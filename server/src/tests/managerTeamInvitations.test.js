@@ -398,7 +398,7 @@ describe('Manager Team Invitation & Enterprise Access Lifecycle', () => {
       const secondToken = lastSentToken;
       expect(secondToken).not.toBe(firstToken);
 
-      // Attempting to accept with first token should fail (400)
+      // Attempting to accept with first token should fail (404 INVALID_TOKEN)
       const acceptFirstRes = await request(app)
         .post('/api/auth/accept-invitation')
         .send({
@@ -406,7 +406,8 @@ describe('Manager Team Invitation & Enterprise Access Lifecycle', () => {
           password: 'ValidPassword123!',
           confirmPassword: 'ValidPassword123!',
         });
-      expect(acceptFirstRes.status).toBe(400);
+      expect(acceptFirstRes.status).toBe(404);
+      expect(acceptFirstRes.body.error.code).toBe('INVALID_TOKEN');
 
       // Accepting with second token succeeds
       const acceptSecondRes = await request(app)
@@ -418,7 +419,7 @@ describe('Manager Team Invitation & Enterprise Access Lifecycle', () => {
         });
       expect(acceptSecondRes.status).toBe(200);
 
-      // Attempting to reuse second token fails (single use)
+      // Attempting to reuse second token fails (409 INVITATION_ALREADY_ACCEPTED)
       const acceptReuseRes = await request(app)
         .post('/api/auth/accept-invitation')
         .send({
@@ -426,7 +427,8 @@ describe('Manager Team Invitation & Enterprise Access Lifecycle', () => {
           password: 'ValidPassword123!',
           confirmPassword: 'ValidPassword123!',
         });
-      expect(acceptReuseRes.status).toBe(400);
+      expect(acceptReuseRes.status).toBe(409);
+      expect(acceptReuseRes.body.error.code).toBe('INVITATION_ALREADY_ACCEPTED');
     });
   });
 
